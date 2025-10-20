@@ -14,6 +14,9 @@ import { getAuth } from "firebase/auth";
 
 // 🔐 Read key from env (set EXPO_PUBLIC_OPENAI_KEY for Expo or OPENAI_API_KEY for other builds)
 // DO NOT hardcode secrets in the client in production; prefer a secure backend proxy.
+const OPENAI_KEY =
+  "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";
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 // Debug logging
 console.log(
@@ -341,10 +344,12 @@ export class AIService {
         patientProfile
           ? { role: "system", content: `Profile:\n${patientProfile}` }
           : null,
-        ...conversationHistory.slice(-4).map((m) => ({
-          role: m.isUser ? "user" : "assistant",
-          content: m.text,
-        })),
+        ...conversationHistory
+          .slice(-4)
+          .map((m) => ({
+            role: m.isUser ? "user" : "assistant",
+            content: m.text,
+          })),
         {
           role: "system",
           content: `Examples:\n"I have a fever" -> "When did it start, [Name]?"\n"What should I do?" -> "NO_FOLLOWUP"`,
@@ -402,10 +407,12 @@ export class AIService {
 
       const messages = [
         { role: "system", content: systemPrompt },
-        ...conversationHistory.slice(-4).map((m) => ({
-          role: m.isUser ? "user" : "assistant",
-          content: m.text,
-        })),
+        ...conversationHistory
+          .slice(-4)
+          .map((m) => ({
+            role: m.isUser ? "user" : "assistant",
+            content: m.text,
+          })),
         { role: "user", content: userInput },
       ];
       const content = await postChat({
