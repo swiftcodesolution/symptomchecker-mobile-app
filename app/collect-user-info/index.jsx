@@ -39,7 +39,7 @@ import { Ionicons } from "@expo/vector-icons"
 export const questionsData = [
   // { question: "What is your Full Name?", summarizedAnswer: "" },
   { question: "What is your Date of Birth (MM/DD/YYYY)?", summarizedAnswer: "" },
-  { question: "What is your Age?", summarizedAnswer: "" },
+  // { question: "What is your Age?", summarizedAnswer: "" },
   { question: "What is your Gender (Male/Female/Other)?", summarizedAnswer: "" },
   { question: "What is your Ethnicity?", summarizedAnswer: "" },
   { question: "What is your Home Address?", summarizedAnswer: "" },

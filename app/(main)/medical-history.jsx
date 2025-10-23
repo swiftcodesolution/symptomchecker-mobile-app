@@ -45,7 +45,7 @@ const MedicalHistory = () => {
   const localAnswers = useSelector(selectAnswers);
 
   // Partitions (according to your current schema/order)
-  const personalItems = useMemo(() => questions.slice(0, 13), [questions]);
+  const personalItems = useMemo(() => questions.slice(0, 10), [questions]);
 
   console.log('personalItems', personalItems);
 

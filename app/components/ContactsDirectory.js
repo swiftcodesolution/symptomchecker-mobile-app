@@ -38,7 +38,7 @@ const ContactsDirectory = ({ visible, onClose }) => {
             <Text style={[styles.th,{flex:1.2}]}>Name</Text>
             <Text style={[styles.th,{flex:1}]}>Relation</Text>
             <Text style={[styles.th,{flex:1}]}>Contact</Text>
-            <Text style={[styles.th,{width:90, textAlign:'center'}]}>Action</Text>
+            {/* <Text style={[styles.th,{width:90, textAlign:'center'}]}>Action</Text> */}
           </View>
 
           <ScrollView style={{maxHeight:'85%'}}>
@@ -50,7 +50,7 @@ const ContactsDirectory = ({ visible, onClose }) => {
                   <Text style={[styles.td,{flex:1.2, fontWeight:'700', color:'#22577A'}]}>{row?.Name || '—'}</Text>
                   <Text style={[styles.td,{flex:1}]}>{row?.Relation || '—'}</Text>
                   <Text style={[styles.td,{flex:1}]}>{row?.ContactNumber || '—'}</Text>
-                  <View style={styles.actions}>
+                  {/* <View style={styles.actions}>
                     <TouchableOpacity onPress={()=>{ setEditing(row); setEditVisible(true); }} style={styles.iconBtn}><Icon name="edit" size={16} color="#22577A" /></TouchableOpacity>
                     <TouchableOpacity onPress={()=>{
                       Alert.alert('Delete Contact','Are you sure?',[
@@ -61,7 +61,7 @@ const ContactsDirectory = ({ visible, onClose }) => {
                         }}
                       ]);
                     }} style={[styles.iconBtn,{backgroundColor:'#FFF0F0'}]}><Icon name="trash-2" size={16} color="#dc3545" /></TouchableOpacity>
-                  </View>
+                  </View> */}
                 </View>
               ))
             )}

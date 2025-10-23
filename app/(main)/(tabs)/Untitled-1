@@ -1,0 +1,71 @@
+  {/* <View style={styles.centerCheckWrapper}>
+                {robotMode ? (
+                  // <View style={styles.robotModeContainer}>
+                  //   <View style={[styles.voiceControlBtn, styles.waveContainer]}>
+                  //     <View style={styles.waveRow}>
+                  //       {waveBars.map((v, i) => (
+                  //         <Animated.View
+                  //           key={i}
+                  //           style={[
+                  //             styles.waveBar,
+                  //             { backgroundColor: waveColor, transform: [{ scaleY: v }], opacity: speechActive ? 1 : 0.35 },
+                  //           ]}
+                  //         />
+                  //       ))}
+                  //     </View>
+                  //     <Text style={styles.listeningText}>{speechActive ? "Listening..." : "Say something"}</Text>
+                  //   </View>
+
+                  //   <TouchableOpacity style={[styles.exitVoiceModeBtn, { borderColor: theme?.primary || "#6B705B" }]} onPress={async () => { await exitVoiceMode() }}>
+                  //     <Icon name="x-circle" size={18} color={theme?.primary || "#6B705B"} />
+                  //     <Text style={[styles.exitVoiceModeText, { color: theme?.primary || "#6B705B" }]}>Exit Voice Mode</Text>
+                  //   </TouchableOpacity>
+                  // </View>
+
+                  // In your robot mode UI section:
+                  <View style={styles.robotModeContainer}>
+                    <View style={[styles.voiceControlBtn, styles.waveContainer]}>
+                      <View style={styles.waveRow}>
+                        {waveBars.map((v, i) => (
+                          <Animated.View
+                            key={i}
+                            style={[
+                              styles.waveBar,
+                              {
+                                backgroundColor: waveColor,
+                                transform: [{ scaleY: v }],
+                                opacity: speechActive ? 1 : (isListening ? 0.6 : 0.3)
+                              },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                      <Text style={styles.listeningText}>
+                        {speechActive ? "Listening..." :
+                          isListening ? "Ready..." :
+                            "Processing..."}
+                      </Text>
+                      {isProcessingVoice && (
+                        <Text style={styles.processingText}>Processing voice...</Text>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.exitVoiceModeBtn, { borderColor: theme?.primary || "#6B705B" }]}
+                      onPress={emergencyVoiceStop} // Use emergency stop
+                    >
+                      <Icon name="x-circle" size={18} color={theme?.primary || "#6B705B"} />
+                      <Text style={[styles.exitVoiceModeText, { color: theme?.primary || "#6B705B" }]}>
+                        Exit Voice Mode
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.voiceOptionsContainer}>
+                    <TouchableOpacity style={[styles.checkBtn]} onPress={handleVoiceButtonPress}>
+                      <Icon name="mic" size={30} color={theme?.primary || "#6B705B"} />
+                      <Text style={styles.startListeningText}>Tap to Speak</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View> */}

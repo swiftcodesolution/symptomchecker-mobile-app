@@ -1,14 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerContentScrollView, DrawerItem } from "@react-navigation/drawer";
 import { router } from "expo-router";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
 import TitleText from "./TitleText";
 import { useTheme } from "../theme/ThemeContext";
 import Header from "./Header";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getAuth } from "firebase/auth";
 import { useSelector, useDispatch } from "react-redux";
-import { selectProfileImage, loadProfileImage } from "../redux/slices/userProfileSlice";
+import { selectProfileImage, loadProfileImage, saveProfileImage } from "../redux/slices/userProfileSlice";
+
+import * as ImagePicker from 'expo-image-picker';
 
 const defaultProfileImg = require("../../assets/user.webp");
 
@@ -18,6 +20,7 @@ const CustomDrawer = (props) => {
   const user = auth.currentUser;
   const profileImage = useSelector(selectProfileImage);
   const { theme } = useTheme();
+  const [uploadingImage, setUploadingImage] = useState();
 
   const handlePress = () => {
     console.log(`btn pressed!`);
@@ -27,6 +30,38 @@ const CustomDrawer = (props) => {
     dispatch(loadProfileImage());
   }, [dispatch]);
 
+  const handleProfileImagePress = async () => {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to change your profile picture.');
+        return;
+      }
+  
+      // Launch image picker
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+  
+      if (!result.canceled) {
+        setUploadingImage(true);
+        try {
+          // Save image using Redux async action
+          await dispatch(saveProfileImage(result.assets[0].uri)).unwrap();
+          Alert.alert('Success', 'Profile picture updated successfully!');
+          // Force reload profile image to ensure all components update
+          dispatch(loadProfileImage());
+        } catch (error) {
+          console.error('Error saving image:', error);
+          Alert.alert('Error', 'Failed to update profile picture');
+        }
+        setUploadingImage(false);
+      }
+    }
+
   return (
     <DrawerContentScrollView
       {...props}
@@ -34,11 +69,18 @@ const CustomDrawer = (props) => {
       contentContainerStyle={styles.drawerInner}
     >
       <View style={styles.userInfo}>
+ <TouchableOpacity 
+          style={styles.profileImgWrapper}
+          onPress={handleProfileImagePress}
+          disabled={uploadingImage}
+        >
+
         <Image
           source={profileImage ? { uri: profileImage } : defaultProfileImg}
           style={styles.profilePic}
           key={profileImage} // Force re-render when profile image changes
         />
+        </TouchableOpacity>
         <TitleText
           title={`Hello ${user?.displayName || 'User'}`}
           style={[styles.userName, { color: theme.btnText }]}

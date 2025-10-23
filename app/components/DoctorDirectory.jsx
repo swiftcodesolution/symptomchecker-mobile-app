@@ -117,7 +117,7 @@ const DoctorDirectory = ({ visible, onClose }) => {
             <Text style={[styles.th, { flex: 1.2 }]}>Name</Text>
             <Text style={[styles.th, { flex: 1.2 }]}>Specialization</Text>
             <Text style={[styles.th, { flex: 1 }]}>Phone</Text>
-            <Text style={[styles.th, { flex: 1 }]}>Hospital</Text>
+            {/* <Text style={[styles.th, { flex: 1 }]}>Hospital</Text> */}
             <Text style={[styles.th, { width: 60, textAlign: 'center' }]}>Primary</Text>
             <Text style={[styles.th, { width: 80, textAlign: 'center' }]}>Action</Text>
           </View>
@@ -126,7 +126,7 @@ const DoctorDirectory = ({ visible, onClose }) => {
             {(doctors || []).length === 0 && !loading ? (
               <View style={{ paddingVertical: 18 }}>
                 <Text style={{ textAlign: 'center', color: '#666' }}>
-                  No doctors added yet
+                  No doctors added yet 
                 </Text>
               </View>
             ) : (
@@ -144,9 +144,9 @@ const DoctorDirectory = ({ visible, onClose }) => {
                     {(d?.specialization && String(d?.specialization)) || '—'}
                   </Text>
                   <Text style={[styles.td, { flex: 1 }]}>{d?.phoneNo || '—'}</Text>
-                  <Text style={[styles.td, { flex: 1 }]}>
+                  {/* <Text style={[styles.td, { flex: 1 }]}>
                     {d?.hospitalName || '—'}
-                  </Text>
+                  </Text> */}
                   <View
                     style={{
                       width: 60,

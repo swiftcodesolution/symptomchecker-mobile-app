@@ -1,11 +1,12 @@
-import React, {useEffect} from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import React, {useEffect, useState} from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DrawerActions, useNavigation } from '@react-navigation/native';
 import { getAuth } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectProfileImage, loadProfileImage } from '../redux/slices/userProfileSlice';
+import { selectProfileImage, loadProfileImage, saveProfileImage } from '../redux/slices/userProfileSlice';
+import * as ImagePicker from 'expo-image-picker';
 
 const defaultProfileImg = require("../../assets/user.webp");
 
@@ -17,6 +18,7 @@ const Header = ({ greeting, location, sos = false, medical = false }) => {
   const user = auth.currentUser;
 
   const profileImage = useSelector(selectProfileImage);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     dispatch(loadProfileImage());
@@ -24,6 +26,39 @@ const Header = ({ greeting, location, sos = false, medical = false }) => {
 
   const handleGoBack = () => {
     navigation.goBack()
+  }
+
+  // Direct image change function
+  const handleProfileImagePress = async () => {
+    // Request permissions
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to change your profile picture.');
+      return;
+    }
+
+    // Launch image picker
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setUploadingImage(true);
+      try {
+        // Save image using Redux async action
+        await dispatch(saveProfileImage(result.assets[0].uri)).unwrap();
+        Alert.alert('Success', 'Profile picture updated successfully!');
+        // Force reload profile image to ensure all components update
+        dispatch(loadProfileImage());
+      } catch (error) {
+        console.error('Error saving image:', error);
+        Alert.alert('Error', 'Failed to update profile picture');
+      }
+      setUploadingImage(false);
+    }
   }
 
   return (
@@ -46,13 +81,25 @@ const Header = ({ greeting, location, sos = false, medical = false }) => {
             <Text style={styles.menuLabel}>Menu</Text>
           </View>
         )}
-        <View style={styles.profileImgWrapper}>
+        <TouchableOpacity 
+          style={styles.profileImgWrapper}
+          onPress={handleProfileImagePress}
+          disabled={uploadingImage}
+        >
           <Image 
             source={profileImage ? { uri: profileImage } : defaultProfileImg} 
-            style={styles.profileImg}
-            key={profileImage} // Force re-render when profile image changes
+            style={[
+              styles.profileImg,
+              uploadingImage && styles.uploadingImage
+            ]}
+            key={profileImage}
           />
-        </View>
+          {uploadingImage && (
+            <View style={styles.uploadingOverlay}>
+              <Ionicons name="cloud-upload" size={24} color="#fff" />
+            </View>
+          )}
+        </TouchableOpacity>
         {sos ? (
           <TouchableOpacity style={styles.sosBtn} onPress={() => router.push('/sos')}>
             <Text style={styles.sosText}>SOS</Text>
@@ -115,6 +162,7 @@ const styles = StyleSheet.create({
   profileImgWrapper: {
     flex: 1,
     alignItems: 'center',
+    position: 'relative',
   },
   profileImg: {
     width: 100,
@@ -124,6 +172,19 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     marginTop: 0,
     marginBottom: 10,
+  },
+  uploadingImage: {
+    opacity: 0.7,
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 10,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sosBtn: {
     backgroundColor: '#F44336',
@@ -159,4 +220,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-}); 
+});

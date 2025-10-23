@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
@@ -16,6 +17,8 @@ import { getAuth } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { firestore } from '../config/firebase';
 import { getPersonalDetails, getInsuranceDetails, getDoctorDetails, getPharmacyDetails, getPersonalContacts } from '../services/firebaseService';
+import { captureRef } from 'react-native-view-shot';
+import RNShare from 'react-native-share';
 
 const { width } = Dimensions.get('window');
 
@@ -31,6 +34,7 @@ const ShareDetailsModal = ({ visible, onClose }) => {
     medicalHistory: null,
   });
 
+  const qrContainerRef = useRef();
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -293,13 +297,82 @@ const ShareDetailsModal = ({ visible, onClose }) => {
     return Object.keys(medicalHistory).length > 0 ? medicalHistory : "No medical history available";
   };
 
+  // Share QR Code as Image
+  const shareQRCodeAsImage = async () => {
+    try {
+      if (!qrContainerRef.current) {
+        Alert.alert('Error', 'QR code not ready yet.');
+        return;
+      }
+
+      // Capture QR code container as image
+      const uri = await captureRef(qrContainerRef.current, {
+        format: 'png',
+        quality: 1.0,
+        result: 'tmpfile',
+      });
+
+      // Share the image using react-native-share
+      const shareOptions = {
+        title: 'Share Medical QR Code',
+        message: `Medical QR Code for ${userData.userInfo.name}\n\nScan this QR code to access complete medical information including personal details, medical history, insurance, and emergency contacts.`,
+        url: `file://${uri}`,
+        type: 'image/png',
+        subject: `Medical QR Code - ${userData.userInfo.name}`,
+      };
+
+      await RNShare.open(shareOptions);
+    } catch (error) {
+      console.error('Error sharing QR code image:', error);
+      // Don't show alert if user cancels the share
+      if (error.message !== 'User did not share') {
+        Alert.alert('Error', 'Failed to share QR code image.');
+      }
+    }
+  };
+
+  // Share as Text Message (Detailed Information)
+  const shareAsText = async () => {
+    try {
+      const shareMessage = `MEDICAL PROFILE - ${userData.userInfo.name}
+
+📋 PERSONAL INFORMATION:
+• Name: ${userData.userInfo.name}
+• Email: ${userData.userInfo.email}
+• Phone: ${userData.personalDetails?.contactNo || 'Not provided'}
+• Address: ${userData.personalDetails?.address || 'Not provided'}
+
+🏥 MEDICAL SUMMARY:
+• Insurance Policies: ${userData.insuranceList.length}
+• Doctors: ${userData.doctorList.length} 
+• Pharmacies: ${userData.pharmacyList.length}
+• Emergency Contacts: ${userData.contactsList.length}
+
+💊 IMPORTANT DETAILS:
+• Complete medical history available via QR code
+• Current medications and dosages
+• Insurance information with policy numbers
+• Emergency contact details
+
+For complete information, please scan the QR code which contains all medical details in a structured format.`;
+      
+      await Share.share({
+        message: shareMessage,
+        title: 'My Medical Information',
+      });
+    } catch (error) {
+      console.error('Error sharing as text:', error);
+      Alert.alert('Error', 'Failed to share medical information.');
+    }
+  };
+
   const renderQRCode = () => {
     if (!qrData) return null;
 
     const qrSize = Math.min(width * 0.7, 300);
 
     return (
-      <View style={styles.qrContainer}>
+      <View ref={qrContainerRef} style={styles.qrContainer}>
         <View style={styles.qrWrapper}>
           <QRCode
             value={qrData}
@@ -315,6 +388,19 @@ const ShareDetailsModal = ({ visible, onClose }) => {
         <Text style={styles.qrDescription}>
           Scan this QR code to access your complete medical information
         </Text>
+        
+        {/* Only 2 Share Buttons as requested */}
+        <View style={styles.shareButtonsContainer}>
+          <TouchableOpacity style={styles.shareButton} onPress={shareQRCodeAsImage}>
+            <Ionicons name="qr-code-outline" size={20} color="#fff" />
+            <Text style={styles.shareButtonText}>Share QR Code</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={[styles.shareButton, styles.textButton]} onPress={shareAsText}>
+            <Ionicons name="chatbubble-outline" size={20} color="#fff" />
+            <Text style={styles.shareButtonText}>Share as Text</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -356,17 +442,6 @@ const ShareDetailsModal = ({ visible, onClose }) => {
             • {contactsList.length} Emergency Contact(s) with Names, Relations & Phone Numbers
           </Text>
         </View>
-
-        <View style={styles.summarySection}>
-          <Text style={styles.summarySectionTitle}>📱 Professional Medical Format</Text>
-          <Text style={styles.summaryText}>
-            • All Onboarding Questions & Sub-Questions Included{'\n'}
-            • Organized into Logical Medical Sections{'\n'}
-            • Easy to read for healthcare providers{'\n'}
-            • Perfect for medical emergencies and doctor visits{'\n'}
-            • Complete Medical Profile in QR Code
-          </Text>
-        </View>
       </View>
     );
   };
@@ -398,7 +473,7 @@ const ShareDetailsModal = ({ visible, onClose }) => {
             
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                This QR code contains your complete medical profile including all onboarding questions, medical history, insurance details, and healthcare provider information. Perfect for medical emergencies and doctor visits.
+                Share your medical information easily via QR code image or text message. Perfect for emergencies and doctor visits.
               </Text>
             </View>
           </ScrollView>
@@ -472,6 +547,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 15,
     lineHeight: 20,
+  },
+  shareButtonsContainer: {
+    // flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 20,
+    gap: 15,
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#22577A',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 150,
+    justifyContent: 'center',
+  },
+  textButton: {
+    backgroundColor: '#38A3A5',
+  },
+  shareButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 8,
+    fontSize: 16,
   },
   summaryContainer: {
     backgroundColor: '#fff',

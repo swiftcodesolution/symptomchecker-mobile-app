@@ -58,7 +58,7 @@ const InsuranceDirectory = ({ visible, onClose }) => {
             <Text style={[styles.th, {flex:1}]}>Policy No</Text>
             <Text style={[styles.th, {flex:1}]}>Issue</Text>
             <Text style={[styles.th, {flex:1}]}>Expiry</Text>
-            <Text style={[styles.th, {width:90, textAlign:'center'}]}>Action</Text>
+            {/* <Text style={[styles.th, {width:90, textAlign:'center'}]}>Action</Text> */}
           </View>
 
           <ScrollView style={{maxHeight:'85%'}}>
@@ -71,10 +71,10 @@ const InsuranceDirectory = ({ visible, onClose }) => {
                   <Text style={[styles.td, {flex:1}]}>{row?.policyNo || '—'}</Text>
                   <Text style={[styles.td, {flex:1}]}>{row?.issueDate || '—'}</Text>
                   <Text style={[styles.td, {flex:1}]}>{row?.expiryDate || '—'}</Text>
-                  <View style={styles.actions}>
+                  {/* <View style={styles.actions}>
                     <TouchableOpacity onPress={() => onEdit(row)} style={styles.iconBtn}><Icon name="edit" size={16} color="#22577A" /></TouchableOpacity>
                     <TouchableOpacity onPress={() => onDelete(row?.id)} style={[styles.iconBtn,{backgroundColor:'#FFF0F0'}]}><Icon name="trash-2" size={16} color="#dc3545" /></TouchableOpacity>
-                  </View>
+                  </View> */}
                 </View>
               ))
             )}

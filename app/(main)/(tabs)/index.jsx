@@ -49,7 +49,7 @@ const disclosureText = [
   "This feature is not a medical device and is not intended to make medical decisions on your behalf.",
   "We strongly recommend that you consult with a licensed healthcare provider for any health concerns.",
   "Always seek the guidance of a qualified professional before acting on any information provided here.",
-  '"Think of this tool as a helpful companion—not a doctor. It provides evidence-based insights derived from millions of medical data points and may reference your profile and medications when available. It is not a substitute for a doctor’s diagnosis or treatment plan."',
+  '"Think of this tool as a helpful companion—not a doctor. It provides evidence-based insights derived from millions of medical data points and may reference your profile and medications when available. It is not a substitute for a doctor\'s diagnosis or treatment plan."',
 ]
 
 // --- Wave visualizer hook ---
@@ -170,7 +170,15 @@ const Home = () => {
   const waveColor = primaryColor
 
   const [showDisclosure, setShowDisclosure] = useState(false)
-  const [messages, setMessages] = useState([])
+   const [messages, setMessages] = useState([
+    {
+      id: 1,
+      text: "In order to assure 100% accuracy please type your symptoms. The response will be both verbal and in text form.",
+      isUser: false,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date(),
+    }
+  ])
   const [inputText, setInputText] = useState("")
   const [voiceInputText, setVoiceInputText] = useState("")
   const [chatStarted, setChatStarted] = useState(false)
@@ -379,20 +387,6 @@ const Home = () => {
     }
   })
 
-  // useSpeechRecognitionEvent("error", () => {
-  //   setIsListening(false)
-  //   setRecognizing(false)
-  //   setSpeechActive(false)
-
-  //   if (robotMode) {
-  //     setRobotStatus("Reconnecting mic…")
-  //     if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
-  //     retryTimerRef.current = setTimeout(() => { startContinuousListening(true) }, 500)
-  //   } else {
-  //     setRobotStatus("Tap mic to start")
-  //   }
-  // })
-
   useSpeechRecognitionEvent("error", (event) => {
     console.log("Speech recognition error:", event);
     setIsListening(false);
@@ -482,19 +476,6 @@ const Home = () => {
     await startContinuousListening(true)
   }
 
-  // const exitVoiceMode = useCallback(async () => {
-  //   stopTTS()
-  //   try { await ExpoSpeechRecognitionModule?.stop?.() } catch { }
-  //   setIsListening(false)
-  //   setRecognizing(false)
-  //   setVoiceInputText("")
-  //   setRecognizedText("")
-  //   setSpeechActive(false)
-  //   setRobotMode(false)
-  //   setRobotStatus("Tap mic to start")
-  //   asrStartingRef.current = false
-  // }, [stopTTS])
-
   const exitVoiceMode = useCallback(async () => {
     // Stop all timers first
     if (retryTimerRef.current) {
@@ -538,14 +519,6 @@ const Home = () => {
     // Clear the speech recognition queue
     lastVoiceSentRef.current = "";
   }, [silenceTimer]); // Add silenceTimer to dependencies
-
-  // const handleVoiceButtonPress = async () => {
-  //   if (robotMode) { await exitVoiceMode(); return }
-  //   if (isSpeaking) { Alert.alert("Please wait", "AI is currently speaking."); return }
-  //   Vibration.vibrate(50)
-  //   await enterVoiceLoop()
-  //   setInputText("")
-  // }
 
   const handleVoiceButtonPress = async () => {
     if (robotMode) {
@@ -657,195 +630,6 @@ const Home = () => {
     asrStartingRef.current = false;
     lastVoiceSentRef.current = "";
   }, [silenceTimer]);
-
-  // ---------- Send message (single-flight + queue) ----------
-  // const handleSendMessage = async (text = inputText, isFromVoice = false) => {
-  //   const messageText = isFromVoice ? (voiceInputText || text) : text
-  //   if (!messageText.trim()) return
-
-  //   // De-dupe same text back-to-back
-  //   const last = messages[messages.length - 1]
-  //   if (last?.isUser && last?.text === messageText) return
-
-  //   const shouldUseName = Boolean((userFirstName || "").trim() && !usedNameOnce)
-
-  //   // 🔥 CRITICAL FIX: AI ko name handle karne do, hum interfere NA karein
-  //   const maybeWithNameOnce = (t) => {
-  //     // Hum kuch bhi name add nahi karenge - AI khud handle karega
-  //     return t;
-  //   }
-
-  //   const run = async () => {
-  //     if (!chatStarted) setChatStarted(true)
-
-  //     const userMessage = {
-  //       id: Date.now(),
-  //       text: messageText,
-  //       isUser: true,
-  //       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-  //       isFromVoice: isFromVoice,
-  //       timestamp: new Date(),
-  //     }
-  //     setMessages((prev) => [...prev, userMessage])
-  //     setInputText("")
-  //     setVoiceInputText("")
-  //     setRecognizedText("")
-  //     setIsLoading(true)
-
-  //     // Fire-and-forget save
-  //     if (currentUser && chatSessionId) {
-  //       saveChatToFirebase({
-  //         sessionId: chatSessionId,
-  //         message: userMessage.text,
-  //         isUser: true,
-  //         timestamp: userMessage.timestamp,
-  //         isFromVoice: isFromVoice,
-  //       }).catch(() => { })
-  //     }
-
-  //     try {
-  //       // ---- Context building ----
-  //       const symptoms = AIService.extractSymptoms(messageText)
-  //       let medicationContext = ""
-  //       if (symptoms.length > 0) {
-  //         try {
-  //           const relevantMeds = await AIService.getRelevantMedications(symptoms)
-  //           if (relevantMeds.length > 0) {
-  //             medicationContext = relevantMeds
-  //               .map((med) => `${med.name} (${med.dosage}) - ${med.frequency}${med.notes ? ` - Notes: ${med.notes}` : ""}`)
-  //               .join("\n")
-  //           }
-  //         } catch { }
-  //       }
-
-  //       // ---- Decide route ----
-  //       let askFollowUpFirst = false
-  //       if (!pendingFollowUp) {
-  //         try {
-  //           askFollowUpFirst = await AIService.shouldSkipMainResponse(messageText, messages.slice(-6), userFirstName)
-  //         } catch { askFollowUpFirst = false }
-  //       }
-
-  //       if (askFollowUpFirst && !pendingFollowUp) {
-  //         // === FOLLOW-UP ONLY (NO advice) ===
-  //         const followUp = await AIService.generateFollowUpQuestion(
-  //           messageText, messages.slice(-6), medicationContext, patientProfile, userFirstName
-  //         )
-  //         const baseText = followUp || "When did this start, and how severe is it?"
-  //         const chatText = maybeWithNameOnce(baseText)
-
-  //         const aiFollow = {
-  //           id: Date.now() + 1,
-  //           text: chatText,
-  //           isUser: false,
-  //           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-  //           timestamp: new Date(),
-  //         }
-  //         setMessages((prev) => [...prev, aiFollow])
-  //         setPendingFollowUp(true)
-
-  //         // flip ONLY if name was actually used
-  //         if (shouldUseName) setUsedNameOnce(true)
-
-  //         if (currentUser && chatSessionId) {
-  //           saveChatToFirebase({
-  //             sessionId: chatSessionId,
-  //             message: aiFollow.text,
-  //             isUser: false,
-  //             timestamp: aiFollow.timestamp,
-  //             isFromVoice: isFromVoice,
-  //           }).catch(() => { })
-  //         }
-
-  //         if (isFromVoice || robotMode) speakSegmented(aiFollow.text, aiFollow.id)
-  //       } else {
-  //         // === MAIN RESPONSE (ALWAYS with DYNAMIC advice) ===
-  //         const suppressFollowUps =
-  //           pendingFollowUp === true ||
-  //           /since|began|started|yesterday|last night|this morning|for \d+\s*(hours?|days?)|subah se|raat se|kal se|aaj subah se/i.test(messageText)
-
-  //         const aiRaw = await AIService.getAIResponse(
-  //           messageText,
-  //           messages.slice(-6),
-  //           medicationContext,
-  //           patientProfile,
-  //           userFirstName,
-  //           { suppressFollowUps }
-  //         )
-
-  //         const mainText = cleanModelText(maybeWithNameOnce(aiRaw))
-
-  //         // Tailored advice for THIS topic (no static strings)
-  //         const advice = await AIService.generateAdviceSection(
-  //           messageText, // topic hint
-  //           messages.slice(-6),
-  //           medicationContext,
-  //           patientProfile,
-  //           userFirstName
-  //         )
-
-  //         const finalText = advice ? `${mainText}\n\n${cleanModelText(advice)}` : mainText
-
-  //         const aiResponse = {
-  //           id: Date.now() + 1,
-  //           text: finalText,
-  //           isUser: false,
-  //           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-  //           timestamp: new Date(),
-  //         }
-  //         setMessages((prev) => [...prev, aiResponse])
-  //         setPendingFollowUp(false)
-
-  //         // flip ONLY if name was actually used
-  //         if (shouldUseName) setUsedNameOnce(true)
-
-  //         if (currentUser && chatSessionId) {
-  //           saveChatToFirebase({
-  //             sessionId: chatSessionId,
-  //             message: aiResponse.text,
-  //             isUser: false,
-  //             timestamp: aiResponse.timestamp,
-  //             isFromVoice: isFromVoice,
-  //           }).catch(() => { })
-  //         }
-
-  //         if (isFromVoice || robotMode) speakSegmented(aiResponse.text, aiResponse.id)
-  //       }
-  //     } catch (error) {
-  //       const errorMessage = {
-  //         id: Date.now() + 1,
-  //         text: "I'm having trouble processing that right now. Please try again.",
-  //         isUser: false,
-  //         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-  //         timestamp: new Date(),
-  //       }
-  //       setMessages((prev) => [...prev, errorMessage])
-  //     } finally {
-  //       setIsLoading(false)
-  //     }
-  //   };
-
-  //   // Queue if another request is running
-  //   if (inFlightRef.current) {
-  //     queueRef.current.push(() => run().finally(() => {
-  //       const next = queueRef.current.shift();
-  //       if (next) next();
-  //       else inFlightRef.current = null;
-  //     }));
-  //     return;
-  //   }
-
-  //   // Start immediately and mark in-flight
-  //   inFlightRef.current = Promise.resolve()
-  //     .then(run)
-  //     .finally(() => {
-  //       const next = queueRef.current.shift();
-  //       if (next) next();
-  //       else inFlightRef.current = null;
-  //     });
-  // }
-
-  
 
   // ---------- Send message (single-flight + queue) ----------
   const handleSendMessage = async (text = inputText, isFromVoice = false) => {
@@ -1067,6 +851,19 @@ const Home = () => {
     lastTapTimeRef.current = now
   }
 
+  // ---------- Pause AI Reading Function ----------
+  const handlePauseReading = () => {
+    stopTTS();
+    if (robotMode) {
+      // Small delay before restarting listening after pause
+      setTimeout(() => {
+        if (robotMode && !ttsCancelledRef.current) {
+          startContinuousListening(true);
+        }
+      }, 300);
+    }
+  };
+
   const handleAgree = async () => {
     try {
       await AsyncStorage.setItem(DISCLOSURE_KEY, "true")
@@ -1156,77 +953,7 @@ const Home = () => {
                 )}
               </View>
 
-              {/* <View style={styles.centerCheckWrapper}>
-                {robotMode ? (
-                  // <View style={styles.robotModeContainer}>
-                  //   <View style={[styles.voiceControlBtn, styles.waveContainer]}>
-                  //     <View style={styles.waveRow}>
-                  //       {waveBars.map((v, i) => (
-                  //         <Animated.View
-                  //           key={i}
-                  //           style={[
-                  //             styles.waveBar,
-                  //             { backgroundColor: waveColor, transform: [{ scaleY: v }], opacity: speechActive ? 1 : 0.35 },
-                  //           ]}
-                  //         />
-                  //       ))}
-                  //     </View>
-                  //     <Text style={styles.listeningText}>{speechActive ? "Listening..." : "Say something"}</Text>
-                  //   </View>
-
-                  //   <TouchableOpacity style={[styles.exitVoiceModeBtn, { borderColor: theme?.primary || "#6B705B" }]} onPress={async () => { await exitVoiceMode() }}>
-                  //     <Icon name="x-circle" size={18} color={theme?.primary || "#6B705B"} />
-                  //     <Text style={[styles.exitVoiceModeText, { color: theme?.primary || "#6B705B" }]}>Exit Voice Mode</Text>
-                  //   </TouchableOpacity>
-                  // </View>
-
-                  // In your robot mode UI section:
-                  <View style={styles.robotModeContainer}>
-                    <View style={[styles.voiceControlBtn, styles.waveContainer]}>
-                      <View style={styles.waveRow}>
-                        {waveBars.map((v, i) => (
-                          <Animated.View
-                            key={i}
-                            style={[
-                              styles.waveBar,
-                              {
-                                backgroundColor: waveColor,
-                                transform: [{ scaleY: v }],
-                                opacity: speechActive ? 1 : (isListening ? 0.6 : 0.3)
-                              },
-                            ]}
-                          />
-                        ))}
-                      </View>
-                      <Text style={styles.listeningText}>
-                        {speechActive ? "Listening..." :
-                          isListening ? "Ready..." :
-                            "Processing..."}
-                      </Text>
-                      {isProcessingVoice && (
-                        <Text style={styles.processingText}>Processing voice...</Text>
-                      )}
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.exitVoiceModeBtn, { borderColor: theme?.primary || "#6B705B" }]}
-                      onPress={emergencyVoiceStop} // Use emergency stop
-                    >
-                      <Icon name="x-circle" size={18} color={theme?.primary || "#6B705B"} />
-                      <Text style={[styles.exitVoiceModeText, { color: theme?.primary || "#6B705B" }]}>
-                        Exit Voice Mode
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={styles.voiceOptionsContainer}>
-                    <TouchableOpacity style={[styles.checkBtn]} onPress={handleVoiceButtonPress}>
-                      <Icon name="mic" size={30} color={theme?.primary || "#6B705B"} />
-                      <Text style={styles.startListeningText}>Tap to Speak</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View> */}
+            
             </ScrollView>
 
             {!robotMode && (
@@ -1234,22 +961,38 @@ const Home = () => {
                 <View style={[styles.inputBox, { backgroundColor: theme.onboardingCardBg || "#E9E71" }]}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Type here if you prefer typing…"
+                    placeholder="Type here"
                     placeholderTextColor="#465D69"
                     value={inputText}
                     onChangeText={setInputText}
                     editable={!isSpeaking && !isLoading}
                   />
+                  
+                  {/* Send/Pause Button */}
                   <TouchableOpacity
-                    style={[styles.sendBtn, { backgroundColor: !isSpeaking && !isLoading ? (theme?.primary || "#6B705B") : "#D3D3D3" }]}
+                    style={[styles.sendBtn, { 
+                      backgroundColor: isSpeaking 
+                        ? "#6B705B" // Red when AI is speaking (pause button)
+                        : (inputText.trim() && !isLoading) 
+                          ? (theme?.primary || "#6B705B") // Normal color when ready to send
+                          : "#D3D3D3" // Disabled color
+                    }]}
                     onPress={() => {
-                      if (inputText.trim() && !isSpeaking && !isLoading) {
-                        handleSendMessage(inputText, false)
+                      if (isSpeaking) {
+                        // Pause AI reading
+                        handlePauseReading();
+                      } else if (inputText.trim() && !isLoading) {
+                        // Send message
+                        handleSendMessage(inputText, false);
                       }
                     }}
-                    disabled={isSpeaking || isLoading}
+                    disabled={(!inputText.trim() && !isSpeaking) || isLoading}
                   >
-                    <Icon name="send" size={24} color={!isSpeaking && !isLoading ? "#fff" : "#999"} />
+                    <Icon 
+                      name={isSpeaking ? "pause" : "send"} 
+                      size={20} 
+                      color={(isSpeaking || (inputText.trim() && !isLoading)) ? "#fff" : "#999"} 
+                    />
                   </TouchableOpacity>
                 </View>
               </View>

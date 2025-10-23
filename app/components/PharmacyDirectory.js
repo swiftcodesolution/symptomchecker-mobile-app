@@ -38,7 +38,7 @@ const PharmacyDirectory = ({ visible, onClose }) => {
             <Text style={[styles.th,{flex:1.2}]}>Pharmacy</Text>
             <Text style={[styles.th,{flex:1.6}]}>Address</Text>
             <Text style={[styles.th,{flex:1}]}>Phone</Text>
-            <Text style={[styles.th,{width:90, textAlign:'center'}]}>Action</Text>
+            {/* <Text style={[styles.th,{width:90, textAlign:'center'}]}>Action</Text> */}
           </View>
 
           <ScrollView style={{maxHeight:'85%'}}>
@@ -50,7 +50,7 @@ const PharmacyDirectory = ({ visible, onClose }) => {
                   <Text style={[styles.td,{flex:1.2, fontWeight:'700', color:'#22577A'}]}>{row?.pharmacyName || '—'}</Text>
                   <Text style={[styles.td,{flex:1.6}]} numberOfLines={1}>{row?.address || '—'}</Text>
                   <Text style={[styles.td,{flex:1}]}>{row?.contactNo || '—'}</Text>
-                  <View style={styles.actions}>
+                  {/* <View style={styles.actions}>
                     <TouchableOpacity onPress={()=>{ setEditing(row); setEditVisible(true); }} style={styles.iconBtn}><Icon name="edit" size={16} color="#22577A" /></TouchableOpacity>
                     <TouchableOpacity onPress={async ()=>{
                       Alert.alert('Delete Pharmacy','Are you sure?',[
@@ -61,7 +61,7 @@ const PharmacyDirectory = ({ visible, onClose }) => {
                         }}
                       ]);
                     }} style={[styles.iconBtn,{backgroundColor:'#FFF0F0'}]}><Icon name="trash-2" size={16} color="#dc3545" /></TouchableOpacity>
-                  </View>
+                  </View> */}
                 </View>
               ))
             )}
