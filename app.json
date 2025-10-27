@@ -21,7 +21,7 @@
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to use the microphone.",
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition."
       },
-      "bundleIdentifier": "com.anonymous.symptomcheckerainew.co"
+      "bundleIdentifier": "com.developer.symptomchecker"
     },
     "android": {
       "adaptiveIcon": {
@@ -36,7 +36,7 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.symptomcheckerainew.co"
+      "package": "com.developer.symptomchecker"
     },
     "web": {
       "favicon": "./assets/favicon.png"

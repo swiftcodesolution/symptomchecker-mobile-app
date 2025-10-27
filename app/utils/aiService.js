@@ -7,7 +7,7 @@ import { getAuth } from "firebase/auth";
 
 // 🔐 Read key from env (set EXPO_PUBLIC_OPENAI_KEY for Expo or OPENAI_API_KEY for other builds)
 // DO NOT hardcode secrets in the client in production; prefer a secure backend proxy.
-const OPENAI_KEY = "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";
+const OPENAI_KEY = "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";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 // Debug logging

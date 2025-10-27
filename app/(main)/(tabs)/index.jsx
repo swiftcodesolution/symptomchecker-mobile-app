@@ -958,6 +958,30 @@ const Home = () => {
 
             {!robotMode && (
               <View style={styles.inputBoxWrapper}>
+                {/* FAB for New Chat */}
+                <TouchableOpacity
+                  style={[styles.fabButton, { backgroundColor: theme?.primary || "#6B705B" }]}
+                  onPress={() => {
+                    setMessages([{
+                      id: 1,
+                      text: "In order to assure 100% accuracy please type your symptoms. The response will be both verbal and in text form.",
+                      isUser: false,
+                      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                      timestamp: new Date(),
+                    }])
+                    setChatStarted(false)
+                    setIsViewingHistory(false)
+                    setChatSessionId(Date.now().toString())
+                    lastVoiceSentRef.current = ""
+                    setPendingFollowUp(false)
+                    setUsedNameOnce(false)
+                    emergencyVoiceStop()
+                  }}
+                >
+                  <Icon name="edit-3" size={20} color="#fff" />
+                  <Text style={styles.fabText}>New Chat</Text>
+                </TouchableOpacity>
+
                 <View style={[styles.inputBox, { backgroundColor: theme.onboardingCardBg || "#E9E71" }]}>
                   <TextInput
                     style={styles.input}
@@ -1081,10 +1105,34 @@ const styles = StyleSheet.create({
   userTime: { color: "#E9E71", fontSize: 12, textAlign: "right", marginTop: 4 },
   aiTime: { color: "#888", fontSize: 12, textAlign: "left", marginTop: 4 },
 
-  inputBoxWrapper: { paddingHorizontal: 20, paddingBottom: 30 },
+  inputBoxWrapper: { paddingHorizontal: 20, paddingBottom: 30, position: 'relative' },
   inputBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 32, marginTop: 10 },
   input: { fontSize: 18, flex: 1, color: "#465D69" },
   sendBtn: { padding: 12, borderRadius: 100, marginLeft: 10 },
+  fabButton: {
+    position: 'absolute',
+    top: -50,
+    right: 20,
+    width: 120,
+    height: 50,
+    borderRadius: 25,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  fabText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
 
   clearHistoryBtn: { padding: 12, borderRadius: 20, alignSelf: "center", margin: 10 },
   clearHistoryText: { color: "#fff", fontWeight: "600" },

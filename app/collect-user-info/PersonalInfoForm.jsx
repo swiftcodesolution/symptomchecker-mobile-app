@@ -13,6 +13,8 @@ import {
   PermissionsAndroid,
   BackHandler,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useState, useEffect, useRef } from "react"
@@ -528,7 +530,12 @@ const PersonalInfoForm = ({ startVoice, stopVoice, displayIndex, total }) => {
 
   return (
     <AnimatedBackground>
-      <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <SafeAreaView style={styles.container}>
         {/* Back to Medical History when coming from Medical History edit */}
         {(params?.fromMedicalHistory === 'true') && (
           <View style={styles.navigationHeader}>
@@ -551,7 +558,13 @@ const PersonalInfoForm = ({ startVoice, stopVoice, displayIndex, total }) => {
           </View>
         )}
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="interactive"
+        >
           {/* All Questions Form */}
           {personalQuestionsData.map((question, index) => (
             <View key={index} style={styles.questionContainer}>
@@ -679,16 +692,52 @@ const PersonalInfoForm = ({ startVoice, stopVoice, displayIndex, total }) => {
 
         {/* Date Picker Modal */}
         {showDatePicker && (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleDateChange}
-            maximumDate={new Date()}
-            minimumDate={new Date(1900, 0, 1)}
-          />
+          <Modal
+            visible={true}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowDatePicker(false)}
+          >
+            <View style={styles.pickerOverlay}>
+              <View style={styles.pickerContainer}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity 
+                    onPress={() => setShowDatePicker(false)}
+                    style={styles.pickerCancelButton}
+                  >
+                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Select Date of Birth</Text>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      handleDateChange({ type: 'set' }, selectedDate);
+                      setShowDatePicker(false);
+                    }}
+                    style={styles.pickerDoneButton}
+                  >
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event, pickedDate) => {
+                    if (pickedDate) {
+                      setSelectedDate(pickedDate);
+                    }
+                  }}
+                  maximumDate={new Date()}
+                  minimumDate={new Date(1900, 0, 1)}
+                  style={styles.picker}
+                />
+              </View>
+            </View>
+          </Modal>
         )}
-      </SafeAreaView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </AnimatedBackground>
   )
 }
@@ -978,5 +1027,51 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginRight: 8,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9E9E0',
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B705B',
+  },
+  pickerCancelButton: {
+    padding: 8,
+  },
+  pickerCancelText: {
+    fontSize: 16,
+    color: '#6B705B',
+    fontWeight: '500',
+  },
+  pickerDoneButton: {
+    padding: 8,
+  },
+  pickerDoneText: {
+    fontSize: 16,
+    color: '#6B705B',
+    fontWeight: '600',
+  },
+  picker: {
+    height: 200,
   },
 })

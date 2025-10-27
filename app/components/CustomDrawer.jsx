@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { getAuth } from "firebase/auth";
 import { useSelector, useDispatch } from "react-redux";
 import { selectProfileImage, loadProfileImage, saveProfileImage } from "../redux/slices/userProfileSlice";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import * as ImagePicker from 'expo-image-picker';
 

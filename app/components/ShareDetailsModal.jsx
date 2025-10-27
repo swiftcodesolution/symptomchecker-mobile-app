@@ -334,13 +334,40 @@ const ShareDetailsModal = ({ visible, onClose }) => {
   // Share as Text Message (Detailed Information)
   const shareAsText = async () => {
     try {
+      // Get comprehensive personal details from medical history
+      const personalInfo = {};
+      if (userData.medicalHistory && Array.isArray(userData.medicalHistory)) {
+        userData.medicalHistory.forEach((answer, index) => {
+          if (answer?.answer && answer.answer !== 'Not provided' && answer.answer.trim() !== '') {
+            // Map common fields
+            if (index === 0) personalInfo['Date of Birth'] = answer.answer;
+            if (index === 1) personalInfo['Age'] = answer.answer;
+            if (index === 2) personalInfo['Gender'] = answer.answer;
+            if (index === 3) personalInfo['Ethnicity'] = answer.answer;
+            if (index === 4) personalInfo['Home Address'] = answer.answer;
+            if (index === 5) personalInfo['City'] = answer.answer;
+            if (index === 6) personalInfo['State'] = answer.answer;
+            if (index === 7) personalInfo['Zip Code'] = answer.answer;
+            if (index === 8) personalInfo['Phone Number'] = answer.answer;
+            if (index === 9) personalInfo['Height'] = answer.answer;
+            if (index === 10) personalInfo['Weight'] = answer.answer;
+          }
+        });
+      }
+
+      // Build comprehensive share message
       const shareMessage = `MEDICAL PROFILE - ${userData.userInfo.name}
 
 📋 PERSONAL INFORMATION:
 • Name: ${userData.userInfo.name}
 • Email: ${userData.userInfo.email}
-• Phone: ${userData.personalDetails?.contactNo || 'Not provided'}
-• Address: ${userData.personalDetails?.address || 'Not provided'}
+• Phone: ${personalInfo['Phone Number'] || userData.personalDetails?.contactNo || 'Not provided'}
+• Address: ${personalInfo['Home Address'] || userData.personalDetails?.address || 'Not provided'}
+• Date of Birth: ${personalInfo['Date of Birth'] || 'Not provided'}
+• Age: ${personalInfo['Age'] || 'Not provided'}
+• Gender: ${personalInfo['Gender'] || 'Not provided'}
+• Height: ${personalInfo['Height'] || 'Not provided'}
+• Weight: ${personalInfo['Weight'] || 'Not provided'}
 
 🏥 MEDICAL SUMMARY:
 • Insurance Policies: ${userData.insuranceList.length}

@@ -18,7 +18,8 @@ export const loadProfileImage = createAsyncThunk(
         return {
           profileImage: savedImage,
           displayName: user.displayName || '',
-          email: user.email || ''
+          email: user.email || '',
+          phoneNumber: user.phoneNumber || ''
         };
       }
       return rejectWithValue('No user found');
@@ -50,7 +51,7 @@ export const saveProfileImage = createAsyncThunk(
 // Async thunk to update user profile
 export const updateUserProfile = createAsyncThunk(
   'userProfile/updateUserProfile',
-  async ({ displayName, email }, { rejectWithValue }) => {
+  async ({ displayName, email, phoneNumber }, { rejectWithValue }) => {
     try {
       const auth = getAuth();
       const user = auth.currentUser;
@@ -64,10 +65,11 @@ export const updateUserProfile = createAsyncThunk(
         await setDoc(userRef, {
           displayName: displayName,
           email: email,
+          phoneNumber: phoneNumber,
           lastUpdated: new Date().toISOString()
         }, { merge: true });
         
-        return { displayName, email };
+        return { displayName, email, phoneNumber };
       }
       return rejectWithValue('No user found');
     } catch (error) {
@@ -80,6 +82,7 @@ const initialState = {
   profileImage: null,
   displayName: '',
   email: '',
+  phoneNumber: '',
   loading: false,
   error: null,
 };
@@ -94,6 +97,7 @@ export const userProfileSlice = createSlice({
     setUserData: (state, action) => {
       state.displayName = action.payload.displayName || '';
       state.email = action.payload.email || '';
+      state.phoneNumber = action.payload.phoneNumber || '';
     },
     setLoading: (state, action) => {
       state.loading = action.payload;
@@ -115,6 +119,7 @@ export const userProfileSlice = createSlice({
         state.profileImage = action.payload.profileImage;
         state.displayName = action.payload.displayName;
         state.email = action.payload.email;
+        state.phoneNumber = action.payload.phoneNumber;
       })
       .addCase(loadProfileImage.rejected, (state, action) => {
         state.loading = false;
@@ -142,6 +147,7 @@ export const userProfileSlice = createSlice({
         state.loading = false;
         state.displayName = action.payload.displayName;
         state.email = action.payload.email;
+        state.phoneNumber = action.payload.phoneNumber;
       })
       .addCase(updateUserProfile.rejected, (state, action) => {
         state.loading = false;
@@ -155,7 +161,8 @@ export const { setProfileImage, setUserData, setLoading, clearError, resetProfil
 export const selectProfileImage = (state) => state.userProfile.profileImage;
 export const selectUserData = (state) => ({
   displayName: state.userProfile.displayName,
-  email: state.userProfile.email
+  email: state.userProfile.email,
+  phoneNumber: state.userProfile.phoneNumber
 });
 export const selectProfileLoading = (state) => state.userProfile.loading;
 export const selectProfileError = (state) => state.userProfile.error;

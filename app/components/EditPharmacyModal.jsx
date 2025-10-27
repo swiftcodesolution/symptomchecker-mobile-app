@@ -7,8 +7,11 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    Alert
+    Alert,
+    KeyboardAvoidingView,
+    Platform
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { savePharmacyDetails } from '../services/firebaseService';
 import Icon from "react-native-vector-icons/Feather";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
@@ -27,6 +30,12 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
     const [isRecording, setIsRecording] = useState(false);
     const [recognizing, setRecognizing] = useState(false);
     const [currentField, setCurrentField] = useState(null);
+    
+    // Time picker states
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [openingTime, setOpeningTime] = useState(new Date());
+    const [closingTime, setClosingTime] = useState(new Date());
+    const [isSettingOpeningTime, setIsSettingOpeningTime] = useState(true);
 
     // Speech recognition setup
     useSpeechRecognitionEvent("start", () => setRecognizing(true));
@@ -105,6 +114,10 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
     useEffect(() => {
         if (currentPharmacy) {
             setFormData(currentPharmacy);
+            // Parse existing operating hours
+            const { opening, closing } = parseOperatingHours(currentPharmacy.operatingHours);
+            setOpeningTime(opening);
+            setClosingTime(closing);
         } else {
             setFormData({
                 pharmacyName: '',
@@ -115,6 +128,13 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
                 services: '',
                 notes: ''
             });
+            // Set default times
+            const defaultOpening = new Date();
+            defaultOpening.setHours(9, 0, 0, 0);
+            const defaultClosing = new Date();
+            defaultClosing.setHours(21, 0, 0, 0);
+            setOpeningTime(defaultOpening);
+            setClosingTime(defaultClosing);
         }
     }, [currentPharmacy]);
 
@@ -156,9 +176,66 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    // Time picker functions
+    const formatTime = (date) => {
+        return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+
+    const parseOperatingHours = (hoursString) => {
+        if (!hoursString) return { opening: new Date(), closing: new Date() };
+        
+        const timeRegex = /(\d{1,2}:\d{2}\s*(?:AM|PM))\s*-\s*(\d{1,2}:\d{2}\s*(?:AM|PM))/i;
+        const match = hoursString.match(timeRegex);
+        
+        if (match) {
+            const openingTimeStr = match[1];
+            const closingTimeStr = match[2];
+            
+            const today = new Date();
+            const openingTime = new Date(`${today.toDateString()} ${openingTimeStr}`);
+            const closingTime = new Date(`${today.toDateString()} ${closingTimeStr}`);
+            
+            return { opening: openingTime, closing: closingTime };
+        }
+        
+        return { opening: new Date(), closing: new Date() };
+    };
+
+    const handleTimeChange = (event, selectedTime) => {
+        if (Platform.OS === 'android') {
+            setShowTimePicker(false);
+        }
+        
+        if (selectedTime) {
+            if (isSettingOpeningTime) {
+                setOpeningTime(selectedTime);
+            } else {
+                setClosingTime(selectedTime);
+            }
+            
+            // Update the operating hours string
+            const openingStr = formatTime(isSettingOpeningTime ? selectedTime : openingTime);
+            const closingStr = formatTime(isSettingOpeningTime ? closingTime : selectedTime);
+            updateField('operatingHours', `${openingStr} - ${closingStr}`);
+        }
+    };
+
+    const openTimePicker = (isOpening) => {
+        setIsSettingOpeningTime(isOpening);
+        setShowTimePicker(true);
+    };
+
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-            <View style={styles.container}>
+            <KeyboardAvoidingView 
+                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+            >
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onClose} accessibilityLabel="Back">
                         <Icon name="arrow-left" size={22} color="#6B705B" />
@@ -173,7 +250,14 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView style={styles.form}>
+                <ScrollView 
+                    style={styles.form}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    automaticallyAdjustKeyboardInsets={true}
+                    keyboardDismissMode="interactive"
+                >
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Pharmacy Name *</Text>
                         <View style={styles.inputRow}>
@@ -281,26 +365,43 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
 
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Operating Hours</Text>
-                        <View style={styles.inputRow}>
-                            <TextInput
-                                style={styles.input}
-                                value={formData.operatingHours}
-                                onChangeText={(value) => updateField('operatingHours', value)}
-                                placeholder="e.g., 9:00 AM - 9:00 PM"
-                            />
-                            {/* <TouchableOpacity
-                                style={[styles.voiceButton, isRecording && currentField === 'operatingHours' && styles.recordingButton]}
-                                onPress={() => handleVoiceInput('operatingHours')}
-                            >
-                                <Icon
-                                    name={isRecording && currentField === 'operatingHours' ? 'pause' : 'mic'}
-                                    size={20}
-                                    color={isRecording && currentField === 'operatingHours' ? '#E63946' : '#6B705B'}
-                                />
-                                {recognizing && currentField === 'operatingHours' && (
-                                    <View style={styles.recordingIndicator} />
-                                )}
-                            </TouchableOpacity> */}
+                        <View style={styles.timePickerContainer}>
+                            <View style={styles.timeButtonContainer}>
+                                <Text style={styles.timeLabel}>Opening Time</Text>
+                                <TouchableOpacity 
+                                    style={styles.timeButton}
+                                    onPress={() => openTimePicker(true)}
+                                >
+                                    <Icon name="clock" size={16} color="#6B705B" />
+                                    <Text style={styles.timeButtonText}>
+                                        {formatTime(openingTime)}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            
+                            <View style={styles.timeSeparator}>
+                                <Text style={styles.separatorText}>to</Text>
+                            </View>
+                            
+                            <View style={styles.timeButtonContainer}>
+                                <Text style={styles.timeLabel}>Closing Time</Text>
+                                <TouchableOpacity 
+                                    style={styles.timeButton}
+                                    onPress={() => openTimePicker(false)}
+                                >
+                                    <Icon name="clock" size={16} color="#6B705B" />
+                                    <Text style={styles.timeButtonText}>
+                                        {formatTime(closingTime)}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        
+                        {/* Display formatted operating hours */}
+                        <View style={styles.operatingHoursDisplay}>
+                            <Text style={styles.operatingHoursText}>
+                                {formatTime(openingTime)} - {formatTime(closingTime)}
+                            </Text>
                         </View>
                     </View>
 
@@ -343,7 +444,43 @@ const EditPharmacyModal = ({ visible, onClose, currentPharmacy, onSave }) => {
                         />
                     </View> */}
                 </ScrollView>
-            </View>
+            </KeyboardAvoidingView>
+            
+            {/* Time Picker Modal */}
+            {showTimePicker && (
+                <DateTimePicker
+                    value={isSettingOpeningTime ? openingTime : closingTime}
+                    mode="time"
+                    is24Hour={false}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={handleTimeChange}
+                />
+            )}
+            
+            {/* iOS Time Picker Modal */}
+            {Platform.OS === 'ios' && showTimePicker && (
+                <View style={styles.timePickerModal}>
+                    <View style={styles.timePickerHeader}>
+                        <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                            <Text style={styles.cancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.timePickerTitle}>
+                            {isSettingOpeningTime ? 'Opening Time' : 'Closing Time'}
+                        </Text>
+                        <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                            <Text style={styles.doneText}>Done</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                        value={isSettingOpeningTime ? openingTime : closingTime}
+                        mode="time"
+                        is24Hour={false}
+                        display="spinner"
+                        onChange={handleTimeChange}
+                        style={styles.timePicker}
+                    />
+                </View>
+            )}
         </Modal>
     );
 };
@@ -381,6 +518,10 @@ const styles = StyleSheet.create({
     form: {
         flex: 1,
         padding: 16,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 100,
     },
     inputGroup: {
         marginBottom: 16,
@@ -433,6 +574,99 @@ const styles = StyleSheet.create({
         height: 8,
         borderRadius: 4,
         backgroundColor: '#E63946',
+    },
+    // Time picker styles
+    timePickerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    timeButtonContainer: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    timeLabel: {
+        fontSize: 12,
+        color: '#6B705B',
+        marginBottom: 4,
+        fontWeight: '500',
+    },
+    timeButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8F9FA',
+        borderWidth: 1,
+        borderColor: '#E9E9E0',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        minWidth: 100,
+        justifyContent: 'center',
+    },
+    timeButtonText: {
+        fontSize: 14,
+        color: '#22577A',
+        marginLeft: 6,
+        fontWeight: '500',
+    },
+    timeSeparator: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 8,
+    },
+    separatorText: {
+        fontSize: 14,
+        color: '#6B705B',
+        fontWeight: '500',
+    },
+    operatingHoursDisplay: {
+        backgroundColor: '#F0F4F8',
+        borderWidth: 1,
+        borderColor: '#D1E7DD',
+        borderRadius: 8,
+        padding: 12,
+        alignItems: 'center',
+    },
+    operatingHoursText: {
+        fontSize: 16,
+        color: '#22577A',
+        fontWeight: '600',
+    },
+    timePickerModal: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingBottom: 34, // Safe area padding
+    },
+    timePickerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    timePickerTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#22577A',
+    },
+    cancelText: {
+        fontSize: 16,
+        color: '#666',
+    },
+    doneText: {
+        fontSize: 16,
+        color: '#22577A',
+        fontWeight: 'bold',
+    },
+    timePicker: {
+        height: 200,
     },
 });
 

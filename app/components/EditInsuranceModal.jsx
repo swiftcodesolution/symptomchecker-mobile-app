@@ -7,13 +7,14 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    Alert
+    Alert,
+    KeyboardAvoidingView,
+    Platform
 } from 'react-native';
 import { saveInsuranceDetails } from '../services/firebaseService';
 import Icon from "react-native-vector-icons/Feather";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Platform } from 'react-native';
 
 const EditInsuranceModal = ({ visible, onClose, currentInsurance, onSave }) => {
     const [formData, setFormData] = useState({
@@ -191,7 +192,11 @@ const EditInsuranceModal = ({ visible, onClose, currentInsurance, onSave }) => {
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-            <View style={styles.container}>
+            <KeyboardAvoidingView 
+                style={styles.container} 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+            >
                 <View style={styles.header}>
                     <TouchableOpacity onPress={onClose} accessibilityLabel="Back">
                         <Icon name="arrow-left" size={22} color="#6B705B" />
@@ -206,7 +211,14 @@ const EditInsuranceModal = ({ visible, onClose, currentInsurance, onSave }) => {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView style={styles.form}>
+                <ScrollView 
+                    style={styles.form}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    automaticallyAdjustKeyboardInsets={true}
+                    keyboardDismissMode="interactive"
+                >
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Company Name *</Text>
                         <View style={styles.inputRow}>
@@ -311,12 +323,15 @@ const EditInsuranceModal = ({ visible, onClose, currentInsurance, onSave }) => {
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Issue Date</Text>
                         <View style={styles.inputRow}>
-                            <TextInput
+                            <TouchableOpacity 
                                 style={styles.input}
-                                value={formData.issueDate}
-                                onChangeText={(value) => updateField('issueDate', value)}
-                                placeholder="DD/MM/YYYY"
-                            />
+                                onPress={() => setShowIssuePicker(true)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.inputText, !formData.issueDate && styles.placeholderText]}>
+                                    {formData.issueDate || "DD/MM/YYYY"}
+                                </Text>
+                            </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.voiceButton}
                                 onPress={() => setShowIssuePicker(true)}
@@ -324,45 +339,21 @@ const EditInsuranceModal = ({ visible, onClose, currentInsurance, onSave }) => {
                             >
                                 <Icon name="calendar" size={20} color="#6B705B" />
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.voiceButton, isRecording && currentField === 'issueDate' && styles.recordingButton]}
-                                onPress={() => handleVoiceInput('issueDate')}
-                            >
-                                <Icon
-                                    name={isRecording && currentField === 'issueDate' ? 'pause' : 'mic'}
-                                    size={20}
-                                    color={isRecording && currentField === 'issueDate' ? '#E63946' : '#6B705B'}
-                                />
-                                {recognizing && currentField === 'issueDate' && (
-                                    <View style={styles.recordingIndicator} />
-                                )}
-                            </TouchableOpacity>
                         </View>
-                        {showIssuePicker && (
-                            <DateTimePicker
-                                value={parseDate(formData.issueDate)}
-                                mode="date"
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={(event, selectedDate) => {
-                                    if (Platform.OS !== 'ios') setShowIssuePicker(false);
-                                    if (event?.type === 'dismissed') return;
-                                    const dateToSet = selectedDate || parseDate(formData.issueDate);
-                                    updateField('issueDate', formatDate(dateToSet));
-                                }}
-                                maximumDate={parseDate(formData.expiryDate)}
-                            />
-                        )}
                     </View>
 
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Expiry Date</Text>
                         <View style={styles.inputRow}>
-                            <TextInput
+                            <TouchableOpacity 
                                 style={styles.input}
-                                value={formData.expiryDate}
-                                onChangeText={(value) => updateField('expiryDate', value)}
-                                placeholder="DD/MM/YYYY"
-                            />
+                                onPress={() => setShowExpiryPicker(true)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.inputText, !formData.expiryDate && styles.placeholderText]}>
+                                    {formData.expiryDate || "DD/MM/YYYY"}
+                                </Text>
+                            </TouchableOpacity>
                             <TouchableOpacity
                                 style={styles.voiceButton}
                                 onPress={() => setShowExpiryPicker(true)}
@@ -370,37 +361,88 @@ const EditInsuranceModal = ({ visible, onClose, currentInsurance, onSave }) => {
                             >
                                 <Icon name="calendar" size={20} color="#6B705B" />
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.voiceButton, isRecording && currentField === 'expiryDate' && styles.recordingButton]}
-                                onPress={() => handleVoiceInput('expiryDate')}
-                            >
-                                <Icon
-                                    name={isRecording && currentField === 'expiryDate' ? 'pause' : 'mic'}
-                                    size={20}
-                                    color={isRecording && currentField === 'expiryDate' ? '#E63946' : '#6B705B'}
-                                />
-                                {recognizing && currentField === 'expiryDate' && (
-                                    <View style={styles.recordingIndicator} />
-                                )}
-                            </TouchableOpacity>
                         </View>
-                        {showExpiryPicker && (
-                            <DateTimePicker
-                                value={parseDate(formData.expiryDate)}
-                                mode="date"
-                                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                onChange={(event, selectedDate) => {
-                                    if (Platform.OS !== 'ios') setShowExpiryPicker(false);
-                                    if (event?.type === 'dismissed') return;
-                                    const dateToSet = selectedDate || parseDate(formData.expiryDate);
-                                    updateField('expiryDate', formatDate(dateToSet));
-                                }}
-                                minimumDate={parseDate(formData.issueDate)}
-                            />
-                        )}
                     </View>
                 </ScrollView>
-            </View>
+            </KeyboardAvoidingView>
+
+            {/* Date Picker Modal */}
+            {(showIssuePicker || showExpiryPicker) && (
+                <Modal
+                    visible={true}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => {
+                        setShowIssuePicker(false);
+                        setShowExpiryPicker(false);
+                    }}
+                >
+                    <View style={styles.pickerOverlay}>
+                        <View style={styles.pickerContainer}>
+                            <View style={styles.pickerHeader}>
+                                <TouchableOpacity 
+                                    onPress={() => {
+                                        setShowIssuePicker(false);
+                                        setShowExpiryPicker(false);
+                                    }}
+                                    style={styles.pickerCancelButton}
+                                >
+                                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                                </TouchableOpacity>
+                                <Text style={styles.pickerTitle}>
+                                    {showIssuePicker ? 'Select Issue Date' : 'Select Expiry Date'}
+                                </Text>
+                                <TouchableOpacity 
+                                    onPress={() => {
+                                        if (showIssuePicker) {
+                                            const dateToSet = parseDate(formData.issueDate);
+                                            updateField('issueDate', formatDate(dateToSet));
+                                        } else {
+                                            const dateToSet = parseDate(formData.expiryDate);
+                                            updateField('expiryDate', formatDate(dateToSet));
+                                        }
+                                        setShowIssuePicker(false);
+                                        setShowExpiryPicker(false);
+                                    }}
+                                    style={styles.pickerDoneButton}
+                                >
+                                    <Text style={styles.pickerDoneText}>Done</Text>
+                                </TouchableOpacity>
+                            </View>
+                            
+                            {showIssuePicker && (
+                                <DateTimePicker
+                                    value={parseDate(formData.issueDate)}
+                                    mode="date"
+                                    display="spinner"
+                                    onChange={(event, selectedDate) => {
+                                        if (selectedDate) {
+                                            updateField('issueDate', formatDate(selectedDate));
+                                        }
+                                    }}
+                                    maximumDate={parseDate(formData.expiryDate)}
+                                    style={styles.picker}
+                                />
+                            )}
+                            
+                            {showExpiryPicker && (
+                                <DateTimePicker
+                                    value={parseDate(formData.expiryDate)}
+                                    mode="date"
+                                    display="spinner"
+                                    onChange={(event, selectedDate) => {
+                                        if (selectedDate) {
+                                            updateField('expiryDate', formatDate(selectedDate));
+                                        }
+                                    }}
+                                    minimumDate={parseDate(formData.issueDate)}
+                                    style={styles.picker}
+                                />
+                            )}
+                        </View>
+                    </View>
+                </Modal>
+            )}
         </Modal>
     );
 };
@@ -439,6 +481,10 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
     },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 100,
+    },
     inputGroup: {
         marginBottom: 16,
     },
@@ -455,7 +501,15 @@ const styles = StyleSheet.create({
         padding: 12,
         fontSize: 16,
         backgroundColor: '#f9f9f9',
-        width: "85%"
+        width: "85%",
+        justifyContent: 'center',
+    },
+    inputText: {
+        fontSize: 16,
+        color: '#222',
+    },
+    placeholderText: {
+        color: '#999',
     },
     textArea: {
         height: 80,
@@ -490,6 +544,52 @@ const styles = StyleSheet.create({
         height: 8,
         borderRadius: 4,
         backgroundColor: '#E63946',
+    },
+    pickerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    pickerContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 20,
+        width: '90%',
+        maxWidth: 400,
+    },
+    pickerHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        paddingBottom: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E9E9E0',
+    },
+    pickerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#6B705B',
+    },
+    pickerCancelButton: {
+        padding: 8,
+    },
+    pickerCancelText: {
+        fontSize: 16,
+        color: '#6B705B',
+        fontWeight: '500',
+    },
+    pickerDoneButton: {
+        padding: 8,
+    },
+    pickerDoneText: {
+        fontSize: 16,
+        color: '#6B705B',
+        fontWeight: '600',
+    },
+    picker: {
+        height: 200,
     },
 });
 

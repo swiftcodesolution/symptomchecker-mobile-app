@@ -8,7 +8,8 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Platform
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -43,6 +44,8 @@ const AddMedicineModal = ({
   const [currentField, setCurrentField] = useState(null);
   const [showRefillPicker, setShowRefillPicker] = useState(false);
   const [refillDateObj, setRefillDateObj] = useState(null);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [timeObj, setTimeObj] = useState(null);
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -60,6 +63,7 @@ const AddMedicineModal = ({
         daysOfWeek: editingMedicine.daysOfWeek || []
       });
       setRefillDateObj(parseDateString(editingMedicine.refillDate || ''));
+      setTimeObj(parseTimeString(editingMedicine.timeToTake || ''));
     } else {
       setFormData({
         name: '',
@@ -71,6 +75,7 @@ const AddMedicineModal = ({
         daysOfWeek: []
       });
       setRefillDateObj(null);
+      setTimeObj(null);
     }
   }, [editingMedicine, visible]);
 
@@ -205,6 +210,15 @@ const AddMedicineModal = ({
     return `${y}-${m}-${d}`;
   };
 
+  const formatTime = (date) => {
+    if (!(date instanceof Date) || isNaN(date)) return '';
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const h12 = ((hours + 11) % 12) + 1;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    return `${h12}:${pad2(minutes)} ${ampm}`;
+  };
+
   const parseDateString = (value) => {
     if (!value) return null;
     
@@ -231,6 +245,38 @@ const AddMedicineModal = ({
     
     const dt2 = new Date(value);
     return isNaN(dt2) ? null : dt2;
+  };
+
+  const parseTimeString = (value) => {
+    if (!value) return null;
+    
+    // Try formats like "9:00 AM", "2:30 PM", "14:00"
+    const ampmMatch = value.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (ampmMatch) {
+      let hours = parseInt(ampmMatch[1], 10);
+      const minutes = parseInt(ampmMatch[2], 10);
+      const meridiem = ampmMatch[3].toUpperCase();
+      
+      if (meridiem === 'PM' && hours < 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+      
+      const date = new Date();
+      date.setHours(hours, minutes, 0, 0);
+      return date;
+    }
+    
+    // Try 24-hour format like "14:00"
+    const twentyFourMatch = value.match(/^(\d{1,2}):(\d{2})$/);
+    if (twentyFourMatch) {
+      const hours = parseInt(twentyFourMatch[1], 10);
+      const minutes = parseInt(twentyFourMatch[2], 10);
+      
+      const date = new Date();
+      date.setHours(hours, minutes, 0, 0);
+      return date;
+    }
+    
+    return null;
   };
 
   const normalizeDateString = (spoken) => {
@@ -316,11 +362,18 @@ const AddMedicineModal = ({
     setShowRefillPicker(true);
   };
 
+  const openTimePicker = () => {
+    setShowTimePicker(true);
+  };
+
   const onChangeRefillDate = (event, selectedDate) => {
     if (Platform.OS === 'android') {
       setShowRefillPicker(false);
     }
-    if (event?.type === 'dismissed') return;
+    if (event?.type === 'dismissed') {
+      setShowRefillPicker(false);
+      return;
+    }
     
     const date = selectedDate || refillDateObj || new Date();
     setRefillDateObj(date);
@@ -328,6 +381,28 @@ const AddMedicineModal = ({
     
     // Also set the date field for notifications (YYYY-MM-DD format)
     handleInputChange('date', formatDateYYYYMMDD(date));
+    
+    if (Platform.OS === 'ios') {
+      setShowRefillPicker(false);
+    }
+  };
+
+  const onChangeTime = (event, selectedTime) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+    if (event?.type === 'dismissed') {
+      setShowTimePicker(false);
+      return;
+    }
+    
+    const time = selectedTime || timeObj || new Date();
+    setTimeObj(time);
+    handleInputChange('timeToTake', formatTime(time));
+    
+    if (Platform.OS === 'ios') {
+      setShowTimePicker(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -417,6 +492,9 @@ const AddMedicineModal = ({
       daysOfWeek: []
     });
     setRefillDateObj(null);
+    setTimeObj(null);
+    setShowRefillPicker(false);
+    setShowTimePicker(false);
     onClose();
   };
 
@@ -428,8 +506,18 @@ const AddMedicineModal = ({
       onRequestClose={handleClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+        <KeyboardAvoidingView 
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <ScrollView 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
+            keyboardDismissMode="interactive"
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Header */}
             <View style={styles.modalHeader}>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton} accessibilityLabel="Back">
@@ -513,40 +601,36 @@ const AddMedicineModal = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Time to Take *</Text>
                 <View style={styles.inputRow}>
-                  <TextInput
+                  <TouchableOpacity 
                     style={[styles.textInput, { flex: 1 }]}
-                    value={formData.timeToTake}
-                    onChangeText={(text) => handleInputChange('timeToTake', text)}
-                    placeholder="e.g., 9:00 AM, 2:00 PM"
-                    placeholderTextColor="#999"
-                  />
-                  {/* <TouchableOpacity 
-                    style={[styles.voiceButton, isRecording && currentField === 'timeToTake' && styles.recordingButton]}
-                    onPress={() => handleVoiceInput('timeToTake')}
+                    onPress={openTimePicker}
+                    activeOpacity={0.7}
                   >
-                    <Icon 
-                      name={isRecording && currentField === 'timeToTake' ? 'pause' : 'mic'} 
-                      size={20} 
-                      color={isRecording && currentField === 'timeToTake' ? '#E63946' : '#6B705B'} 
-                    />
-                    {recognizing && currentField === 'timeToTake' && (
-                      <View style={styles.recordingIndicator} />
-                    )}
-                  </TouchableOpacity> */}
+                    <Text style={[styles.inputText, !formData.timeToTake && styles.placeholderText]}>
+                      {formData.timeToTake || "e.g., 9:00 AM, 2:00 PM"}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.voiceButton}
+                    onPress={openTimePicker}
+                  >
+                    <Icon name="clock" size={20} color="#6B705B" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Refill Date *</Text>
                 <View style={styles.inputRow}>
-                  <TextInput
+                  <TouchableOpacity 
                     style={[styles.textInput, { flex: 1 }]}
-                    value={formData.refillDate}
-                    placeholder="DD/MM/YYYY"
-                    placeholderTextColor="#999"
-                    editable={false}
-                    onPressIn={openRefillPicker}
-                  />
+                    onPress={openRefillPicker}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.inputText, !formData.refillDate && styles.placeholderText]}>
+                      {formData.refillDate || "DD/MM/YYYY"}
+                    </Text>
+                  </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.voiceButton}
                     onPress={openRefillPicker}
@@ -556,15 +640,6 @@ const AddMedicineModal = ({
                 </View>
               </View>
               
-              {showRefillPicker && (
-                <DateTimePicker
-                  value={refillDateObj || new Date()}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onChangeRefillDate}
-                  minimumDate={new Date()}
-                />
-              )}
             </View>
 
             {/* Action Buttons */}
@@ -586,8 +661,81 @@ const AddMedicineModal = ({
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
       </View>
+
+      {/* Date/Time Picker Modal */}
+      {(showRefillPicker || showTimePicker) && (
+        <Modal
+          visible={true}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => {
+            setShowRefillPicker(false);
+            setShowTimePicker(false);
+          }}
+        >
+          <View style={styles.pickerOverlay}>
+            <View style={styles.pickerContainer}>
+              <View style={styles.pickerHeader}>
+                <TouchableOpacity 
+                  onPress={() => {
+                    setShowRefillPicker(false);
+                    setShowTimePicker(false);
+                  }}
+                  style={styles.pickerCancelButton}
+                >
+                  <Text style={styles.pickerCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <Text style={styles.pickerTitle}>
+                  {showRefillPicker ? 'Select Date' : 'Select Time'}
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => {
+                    if (showRefillPicker) {
+                      onChangeRefillDate({ type: 'set' }, refillDateObj || new Date());
+                    } else {
+                      onChangeTime({ type: 'set' }, timeObj || new Date());
+                    }
+                  }}
+                  style={styles.pickerDoneButton}
+                >
+                  <Text style={styles.pickerDoneText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {showRefillPicker && (
+                <DateTimePicker
+                  value={refillDateObj || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      setRefillDateObj(selectedDate);
+                    }
+                  }}
+                  minimumDate={new Date()}
+                  style={styles.picker}
+                />
+              )}
+              
+              {showTimePicker && (
+                <DateTimePicker
+                  value={timeObj || new Date()}
+                  mode="time"
+                  display="spinner"
+                  onChange={(event, selectedTime) => {
+                    if (selectedTime) {
+                      setTimeObj(selectedTime);
+                    }
+                  }}
+                  style={styles.picker}
+                />
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </Modal>
   );
 };
@@ -605,6 +753,10 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '90%',
     maxHeight: '80%',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 100,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -645,6 +797,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#495057',
     backgroundColor: '#F8F9FA',
+    justifyContent: 'center',
+  },
+  inputText: {
+    fontSize: 16,
+    color: '#495057',
+  },
+  placeholderText: {
+    color: '#999',
   },
   helperText: {
     fontSize: 12,
@@ -725,6 +885,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#6B705B',
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9E9E0',
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B705B',
+  },
+  pickerCancelButton: {
+    padding: 8,
+  },
+  pickerCancelText: {
+    fontSize: 16,
+    color: '#6B705B',
+    fontWeight: '500',
+  },
+  pickerDoneButton: {
+    padding: 8,
+  },
+  pickerDoneText: {
+    fontSize: 16,
+    color: '#6B705B',
+    fontWeight: '600',
+  },
+  picker: {
+    height: 200,
   },
 });
 

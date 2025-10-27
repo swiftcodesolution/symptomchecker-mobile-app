@@ -7,7 +7,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { saveEmergencyContact } from '../services/firebaseService';
 import Icon from "react-native-vector-icons/Feather";
@@ -158,7 +160,11 @@ const EditEmergencyContactModal = ({ visible, onClose, currentContact, onSave })
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <View style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
         <View style={styles.header}>
         <TouchableOpacity onPress={onClose} accessibilityLabel="Back">
             <Icon name="arrow-left" size={22} color="#6B705B" />
@@ -173,7 +179,14 @@ const EditEmergencyContactModal = ({ visible, onClose, currentContact, onSave })
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.form}>
+        <ScrollView 
+          style={styles.form}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="interactive"
+        >
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Name *</Text>
             <View style={styles.inputRow}>
@@ -251,7 +264,7 @@ const EditEmergencyContactModal = ({ visible, onClose, currentContact, onSave })
             </View>
           </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -289,6 +302,10 @@ const styles = StyleSheet.create({
   form: {
     flex: 1,
     padding: 16,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 100,
   },
   inputGroup: {
     marginBottom: 16,
