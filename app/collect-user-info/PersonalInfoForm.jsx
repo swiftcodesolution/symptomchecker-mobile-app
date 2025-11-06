@@ -454,13 +454,19 @@ const PersonalInfoForm = ({ startVoice, stopVoice, displayIndex, total }) => {
         const mergedAnswers = Array(questionsData.length).fill(null).map((_, idx) => {
           const local = (answers[idx] || {});
           const remote = (existingData.answers?.[idx] || {});
-          return (local.answer && local.answer.trim() !== "") ? {
-            answer: local.answer,
-            summarizedAnswer: local.summarizedAnswer || ""
-          } : {
-            answer: remote.answer || "",
-            summarizedAnswer: remote.summarizedAnswer || ""
-          };
+          
+          // If local answer exists (even if empty), use it; otherwise use remote
+          if (local.hasOwnProperty('answer')) {
+            return {
+              answer: local.answer || "",
+              summarizedAnswer: local.summarizedAnswer || ""
+            };
+          } else {
+            return {
+              answer: remote.answer || "",
+              summarizedAnswer: remote.summarizedAnswer || ""
+            };
+          }
         });
 
         await setDoc(userDocRef, { answers: mergedAnswers, updatedAt: new Date().toISOString() }, { merge: true });
@@ -504,13 +510,19 @@ const PersonalInfoForm = ({ startVoice, stopVoice, displayIndex, total }) => {
       const mergedAnswers = Array(questionsData.length).fill(null).map((_, idx) => {
         const local = (answers[idx] || {});
         const remote = (existingData.answers?.[idx] || {});
-        return (local.answer && local.answer.trim() !== "") ? {
-          answer: local.answer,
-          summarizedAnswer: local.summarizedAnswer || ""
-        } : {
-          answer: remote.answer || "",
-          summarizedAnswer: remote.summarizedAnswer || ""
-        };
+        
+        // If local answer exists (even if empty), use it; otherwise use remote
+        if (local.hasOwnProperty('answer')) {
+          return {
+            answer: local.answer || "",
+            summarizedAnswer: local.summarizedAnswer || ""
+          };
+        } else {
+          return {
+            answer: remote.answer || "",
+            summarizedAnswer: remote.summarizedAnswer || ""
+          };
+        }
       });
 
       await setDoc(userDocRef, { answers: mergedAnswers, updatedAt: new Date().toISOString() }, { merge: true });

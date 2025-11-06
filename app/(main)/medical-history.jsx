@@ -62,18 +62,29 @@ const MedicalHistory = () => {
       // Use questions array directly to avoid dependency issues
       const personalItemsFromQuestions = questions.slice(0, 13);
       
-      // Phone number (id: 9)
-      const phoneItem = personalItemsFromQuestions.find(item => item.id === 9);
+      // Debug: Log all items to see the correct mapping
+      console.log('🔍 All personal items:', personalItemsFromQuestions.map(item => ({
+        id: item.id,
+        text: item.text,
+        fullAnswer: item.fullAnswer
+      })));
+      
+      // Find phone number by text content (more reliable than ID)
+      const phoneItem = personalItemsFromQuestions.find(item => 
+        item.text && item.text.toLowerCase().includes('phone number')
+      );
       if (phoneItem && phoneItem.fullAnswer && phoneItem.fullAnswer !== 'No answer provided') {
         await savePhoneNumber(phoneItem.fullAnswer);
-        console.log('Phone number saved:', phoneItem.fullAnswer);
+        console.log('🔍 Phone number saved:', phoneItem.fullAnswer);
       }
 
-      // Address (id: 5 - Home Address)
-      const addressItem = personalItemsFromQuestions.find(item => item.id === 5);
+      // Find home address by text content (more reliable than ID)
+      const addressItem = personalItemsFromQuestions.find(item => 
+        item.text && item.text.toLowerCase().includes('home address')
+      );
       if (addressItem && addressItem.fullAnswer && addressItem.fullAnswer !== 'No answer provided') {
         await saveAddress(addressItem.fullAnswer);
-        console.log('Address saved:', addressItem.fullAnswer);
+        console.log('🔍 Address saved:', addressItem.fullAnswer);
       }
     } catch (error) {
       console.error('Error saving phone and address:', error);
@@ -97,20 +108,16 @@ const MedicalHistory = () => {
     (async () => {
       try {
         const base = [...baseQuestionList];
-        const hasLocal = Object.values(localAnswers || {}).some(
-          (a) => (a?.answer ?? '').trim() !== '' || (a?.summarizedAnswer ?? '').trim() !== ''
-        );
+        const hasLocal = Object.keys(localAnswers || {}).length > 0;
 
         if (hasLocal) {
           const merged = base.map((q, idx) => {
             const a = localAnswers[idx] || {};
             return {
               ...q,
-              fullAnswer: typeof a.answer === 'string' && a.answer !== '' ? a.answer : 'No answer provided',
+              fullAnswer: typeof a.answer === 'string' ? a.answer : 'No answer provided',
               summarizedAnswer:
-                typeof a.summarizedAnswer === 'string' && a.summarizedAnswer !== ''
-                  ? a.summarizedAnswer
-                  : 'No summary available',
+                typeof a.summarizedAnswer === 'string' ? a.summarizedAnswer : 'No summary available',
             };
           });
           if (mounted) {
@@ -142,12 +149,8 @@ const MedicalHistory = () => {
           const r = fbAnswers[idx] || {};
           return {
             ...q,
-            fullAnswer:
-              typeof r.answer === 'string' && r.answer.trim() !== '' ? r.answer : 'No answer provided',
-            summarizedAnswer:
-              typeof r.summarizedAnswer === 'string' && r.summarizedAnswer.trim() !== ''
-                ? r.summarizedAnswer
-                : 'No summary available',
+            fullAnswer: typeof r.answer === 'string' ? r.answer : 'No answer provided',
+            summarizedAnswer: typeof r.summarizedAnswer === 'string' ? r.summarizedAnswer : 'No summary available',
           };
         });
 
@@ -162,9 +165,8 @@ const MedicalHistory = () => {
             const a = localAnswers[idx] || {};
             return {
               ...q,
-              fullAnswer: (a.answer ?? '').trim() !== '' ? a.answer : 'No answer provided',
-              summarizedAnswer:
-                (a.summarizedAnswer ?? '').trim() !== '' ? a.summarizedAnswer : 'No summary available',
+              fullAnswer: typeof a.answer === 'string' ? a.answer : 'No answer provided',
+              summarizedAnswer: typeof a.summarizedAnswer === 'string' ? a.summarizedAnswer : 'No summary available',
             };
           });
           setQuestions(base);
@@ -183,12 +185,10 @@ const MedicalHistory = () => {
     setQuestions((prev) =>
       prev.map((q, idx) => {
         const a = localAnswers[idx] || {};
-        const full = typeof a.answer === 'string' ? a.answer : '';
-        const sum = typeof a.summarizedAnswer === 'string' ? a.summarizedAnswer : '';
         return {
           ...q,
-          fullAnswer: full.trim() !== '' ? full : 'No answer provided',
-          summarizedAnswer: sum.trim() !== '' ? sum : 'No summary available',
+          fullAnswer: typeof a.answer === 'string' ? a.answer : 'No answer provided',
+          summarizedAnswer: typeof a.summarizedAnswer === 'string' ? a.summarizedAnswer : 'No summary available',
         };
       })
     );
@@ -306,10 +306,11 @@ const MedicalHistory = () => {
     let displayValue = hasAnswer ? q.fullAnswer : 'No answer provided';
     let isSaved = false;
     
-    if (q.id === 9 && savedContacts.phone) {
+    // Use text-based matching instead of ID-based matching
+    if (q.text && q.text.toLowerCase().includes('phone number') && savedContacts.phone) {
       displayValue = savedContacts.phone;
       isSaved = true;
-    } else if (q.id === 5 && savedContacts.address) {
+    } else if (q.text && q.text.toLowerCase().includes('home address') && savedContacts.address) {
       displayValue = savedContacts.address;
       isSaved = true;
     }

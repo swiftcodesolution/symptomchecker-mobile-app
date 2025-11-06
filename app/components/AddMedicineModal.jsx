@@ -363,6 +363,17 @@ const AddMedicineModal = ({
   };
 
   const openTimePicker = () => {
+    // Ensure timeObj is set from existing time string if available
+    if (formData.timeToTake && !timeObj) {
+      const parsed = parseTimeString(formData.timeToTake);
+      if (parsed) {
+        setTimeObj(parsed);
+      }
+    }
+    // If still no timeObj, use current time
+    if (!timeObj) {
+      setTimeObj(new Date());
+    }
     setShowTimePicker(true);
   };
 
@@ -723,7 +734,8 @@ const AddMedicineModal = ({
                 <DateTimePicker
                   value={timeObj || new Date()}
                   mode="time"
-                  display="spinner"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  is24Hour={false}
                   onChange={(event, selectedTime) => {
                     if (selectedTime) {
                       setTimeObj(selectedTime);

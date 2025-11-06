@@ -9,6 +9,7 @@ import {
   ScrollView,
   Linking,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,12 +34,15 @@ const tiles = [
   { label: 'SOS\nEmergency', route: '/sos', isSOS: true },
 ];
 
-// Helper to chunk tiles into rows of 2
+// Helper to chunk tiles into rows based on screen width
 const chunkTiles = (arr, size) => {
   const res = [];
   for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
   return res;
 };
+
+// Check if device is tablet/large screen (Z Fold unfolded)
+const isTablet = (width) => width >= 768;
 
 // sanitize phone to digits & leading +
 const sanitizePhone = (input) => {
@@ -51,7 +55,11 @@ const sanitizePhone = (input) => {
 
 const Dashboard = () => {
   const router = useRouter();
-  const tileRows = chunkTiles(tiles, 2);
+  const { width: screenWidth } = useWindowDimensions();
+  
+  // Determine columns based on screen size (Z Fold support)
+  const columns = isTablet(screenWidth) ? 3 : 2;
+  const tileRows = chunkTiles(tiles, columns);
 
   // Keep the selected/primary doctor in state (SOS single-doc first, else first doctors-list row)
   const [primaryDoctor, setPrimaryDoctor] = useState(null);
@@ -138,26 +146,54 @@ const Dashboard = () => {
     loadPrimaryDoctor();
   };
 
+  // Calculate responsive tile dimensions
+  const isLargeScreen = isTablet(screenWidth);
+  const tileMaxWidth = isLargeScreen ? Math.min(220, screenWidth / columns - 40) : 180;
+  const tileHeight = isLargeScreen ? 160 : 140;
+  const sosTileMaxWidth = isLargeScreen ? Math.min(500, screenWidth * 0.6) : 380;
+
   return (
     <AnimatedBackground>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={[
+            styles.scrollContent,
+            isLargeScreen && styles.scrollContentTablet
+          ]} 
+          showsVerticalScrollIndicator={false}
+        >
           <Header
             profileImage={profileImg}
             greeting="Hello Scott"
             location="SC, 702 USA"
             sos={false}
           />
-          <View style={styles.tilesGrid}>
+          <View style={[
+            styles.tilesGrid,
+            isLargeScreen && styles.tilesGridTablet
+          ]}>
             {tileRows.map((row, rowIdx) => (
-              <View style={styles.tileRow} key={rowIdx}>
+              <View 
+                style={[
+                  styles.tileRow,
+                  isLargeScreen && styles.tileRowTablet
+                ]} 
+                key={rowIdx}
+              >
                 {row.map((tile) => {
                   // SOS tile: long rectangle → go to /sos
                   if (tile.isSOS) {
                     return (
                       <TouchableOpacity
                         key={tile.label}
-                        style={[styles.tile, styles.sosTile, styles.sosTileLong]}
+                        style={[
+                          styles.tile, 
+                          styles.sosTile, 
+                          {
+                            maxWidth: sosTileMaxWidth,
+                            height: tileHeight,
+                          }
+                        ]}
                         onPress={() => router.push(tile.route)}
                         activeOpacity={0.8}
                       >
@@ -173,7 +209,13 @@ const Dashboard = () => {
                     return (
                       <TouchableOpacity
                         key={tile.label}
-                        style={styles.tile}
+                        style={[
+                          styles.tile,
+                          {
+                            maxWidth: tileMaxWidth,
+                            height: tileHeight,
+                          }
+                        ]}
                         onPress={() => setShowShareModal(true)}
                         activeOpacity={0.8}
                       >
@@ -188,7 +230,14 @@ const Dashboard = () => {
                     return (
                       <TouchableOpacity
                         key={tile.label}
-                        style={[styles.tile, styles.sosTile]}
+                        style={[
+                          styles.tile, 
+                          styles.sosTile,
+                          {
+                            maxWidth: tileMaxWidth,
+                            height: tileHeight,
+                          }
+                        ]}
                         onPress={handleCallDoctor}
                         activeOpacity={0.8}
                       >
@@ -203,7 +252,13 @@ const Dashboard = () => {
                   return (
                     <TouchableOpacity
                       key={tile.label}
-                      style={styles.tile}
+                      style={[
+                        styles.tile,
+                        {
+                          maxWidth: tileMaxWidth,
+                          height: tileHeight,
+                        }
+                      ]}
                       onPress={() => router.push(tile.route)}
                       activeOpacity={0.8}
                     >
@@ -213,7 +268,7 @@ const Dashboard = () => {
                   );
                 })}
                 {/* If last row has only 1 tile, keep grid aligned (except when that tile is SOS) */}
-                {row.length === 1 && !row[0].isSOS && (
+                {row.length === 1 && !row[0].isSOS && columns === 2 && (
                   <View style={[styles.tile, { backgroundColor: 'transparent', elevation: 0 }]} />
                 )}
               </View>
@@ -244,10 +299,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 40,
   },
+  scrollContentTablet: {
+    paddingHorizontal: 20,
+    paddingBottom: 60,
+  },
   tilesGrid: {
     width: '100%',
     alignItems: 'center',
     marginTop: 10,
+    maxWidth: 1200, // Prevent tiles from getting too wide on very large screens
+    alignSelf: 'center',
+  },
+  tilesGridTablet: {
+    paddingHorizontal: 20,
   },
   tileRow: {
     flexDirection: 'row',
@@ -255,10 +319,11 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 18,
   },
+  tileRowTablet: {
+    marginBottom: 24,
+  },
   tile: {
     flex: 1,
-    maxWidth: 180,
-    height: 140,
     backgroundColor: '#e3ded3',
     borderRadius: 28,
     alignItems: 'center',
@@ -268,6 +333,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
+    minWidth: 120, // Minimum width for very small screens
   },
   tileIcon: {
     width: 48,
@@ -283,10 +349,6 @@ const styles = StyleSheet.create({
   },
   sosTile: {
     backgroundColor: '#c62828',
-  },
-  sosTileLong: {
-    maxWidth: 380, // wider
-    height: 140, // thinner
   },
   sosLabel: {
     color: '#fff',

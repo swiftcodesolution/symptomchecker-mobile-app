@@ -3,7 +3,12 @@ import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import EditPersonalDetailsModal from './EditPersonalDetailsModal';
 import { getAuth } from 'firebase/auth';
-import { getSavedData } from '../utils/storage'; // Import your storage utility
+import { useSelector } from 'react-redux';
+import { selectUserData } from '../redux/slices/userProfileSlice';
+import { selectAnswers } from '../redux/slices/userInfoSlice';
+import { questionsData } from '../collect-user-info';
+import { firebaseAuth, firestore } from '../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const Row = ({ label, value }) => (
     <View style={styles.row}>
@@ -17,19 +22,49 @@ const PersonalDetailsView = ({ visible, onClose, currentDetails, onUpdated }) =>
     const [savedContacts, setSavedContacts] = useState({ phone: null, address: null });
     const auth = getAuth();
     const user = auth.currentUser;
+    
+    // Get user data from Redux store
+    const userData = useSelector(selectUserData);
+    const localAnswers = useSelector(selectAnswers);
 
-    // Load saved contacts from local storage when modal opens
+    // Load saved contacts from Firestore/Redux when modal opens (same as medical-wallet)
     useEffect(() => {
         if (visible) {
             loadSavedContacts();
         }
-    }, [visible]);
+    }, [visible, localAnswers]);
 
     const loadSavedContacts = async () => {
         try {
-            const data = await getSavedData();
-            setSavedContacts(data);
-            console.log('Loaded saved contacts for PersonalDetailsView:', data);
+            // Load phone and address from Firestore/Redux (same as medical-wallet)
+            let phoneValue = '';
+            let addressValue = '';
+            
+            // Find the indices for phone and address in questionsData
+            const phoneIndex = questionsData.findIndex(q => q.question.includes('Phone Number'));
+            const addressIndex = questionsData.findIndex(q => q.question.includes('Home Address'));
+            
+            // Try to get from Redux first
+            if (localAnswers && Object.keys(localAnswers).length > 0) {
+                phoneValue = localAnswers[phoneIndex]?.answer || '';
+                addressValue = localAnswers[addressIndex]?.answer || '';
+            }
+            
+            // If not in Redux, try to load from Firestore
+            if (!phoneValue && !addressValue) {
+                const user = firebaseAuth.currentUser;
+                if (user) {
+                    const snap = await getDoc(doc(firestore, 'users', user.uid));
+                    if (snap.exists() && Array.isArray(snap.data()?.answers)) {
+                        const fbAnswers = snap.data().answers;
+                        phoneValue = fbAnswers[phoneIndex]?.answer || '';
+                        addressValue = fbAnswers[addressIndex]?.answer || '';
+                    }
+                }
+            }
+            
+            console.log("🔍 PersonalDetailsView: Loading phone and address from Firestore/Redux:", { phoneValue, addressValue });
+            setSavedContacts({ phone: phoneValue, address: addressValue });
         } catch (error) {
             console.error('Error loading saved contacts:', error);
         }
@@ -38,55 +73,9 @@ const PersonalDetailsView = ({ visible, onClose, currentDetails, onUpdated }) =>
     console.log("currentDetails", currentDetails);
     console.log("savedContacts", savedContacts);
 
-    const extractPersonalDetails = (details, savedContacts) => {
-        if (!details) return {};
-
-        let phoneNumber = savedContacts.phone || '—';
-        let address = savedContacts.address || '—';
-        let city = '—';
-        let state = '—';
-        let zipCode = '—';
-
-        // Only use currentDetails if we don't have saved contacts
-        if (details.address && address === '—') {
-            const addressParts = details.address.split(', ');
-
-            // Phone number usually last part with numbers only
-            const possiblePhone = addressParts[addressParts.length - 1];
-
-            // Check if this looks like a phone number (contains only digits and is 10-15 digits)
-            if (/^\d{10,15}$/.test(possiblePhone.replace(/\D/g, ''))) {
-                phoneNumber = phoneNumber === '—' ? possiblePhone : phoneNumber;
-                // Remove phone number from address
-                addressParts.pop();
-                address = address === '—' ? addressParts.join(', ') : address;
-            } else {
-                address = address === '—' ? details.address : address;
-            }
-        }
-
-        // Extract other fields if available
-        if (details.contactNo && details.contactNo !== '14lb' && phoneNumber === '—') {
-            phoneNumber = details.contactNo;
-        }
-
-        return {
-            phoneNumber,
-            address: address !== '—' ? address : (details.address || '—'),
-            city: details.city || '—',
-            state: details.state || '—',
-            zipCode: details.zipCode || '—',
-            dateOfBirth: details.dateOfBirth || details.name || '—', // name field mein DOB hai
-            age: details.age || '—',
-            gender: details.gender || '—',
-            ethnicity: details.ethnicity || '—',
-            height: details.height || '—',
-            weight: details.weight || (details.email !== '25' ? details.email : '—'), // email field mein weight hai
-            email: user?.email || '—'
-        };
-    };
-
-    const cleanedDetails = extractPersonalDetails(currentDetails, savedContacts);
+    // No need for complex extraction - just use savedContacts directly
+    // Phone and address come from AsyncStorage (same as search-history)
+    // Name and email come from Redux store
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -100,10 +89,9 @@ const PersonalDetailsView = ({ visible, onClose, currentDetails, onUpdated }) =>
                 </View>
 
                 <View style={styles.card}>
-                    <Row label="Name" value={user?.displayName} />
+                    <Row label="Name" value={userData.displayName || user?.displayName} />
                     <Row label="Phone Number" value={savedContacts.phone} />
-
-                    <Row label="Email" value={user.email} />
+                    <Row label="Email" value={userData.email || user.email} />
                     <Row label="Address" value={savedContacts.address} />
                 </View>
             </View>

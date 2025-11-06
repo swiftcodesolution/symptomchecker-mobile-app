@@ -7,7 +7,7 @@ import { getAuth } from "firebase/auth";
 
 // 🔐 Read key from env (set EXPO_PUBLIC_OPENAI_KEY for Expo or OPENAI_API_KEY for other builds)
 // DO NOT hardcode secrets in the client in production; prefer a secure backend proxy.
-const OPENAI_KEY = "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";
+const OPENAI_KEY = "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";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 // Debug logging
@@ -18,58 +18,127 @@ console.log("🔑 Key Ends With:", OPENAI_KEY ? `...${OPENAI_KEY.substring(OPENA
 
 const PRIMARY_MODEL = "gpt-4o-mini";
 const FALLBACK_MODEL = "gpt-4o-mini";
+const VISION_MODEL = "gpt-4o-mini"; // gpt-4o-mini supports vision
 
 // === Centralized disclaimer line (client-approved wording) ===
 export const DISCLAIMER_LINE =
   "These answers are evidence-based, derived from millions of medical data points, and tailored using your profile and medications when available. They are not a substitute for a doctor’s diagnosis or treatment plan.";
 
-const MEDICAL_SYSTEM_PROMPT = `You are a careful medical information assistant.
+const MEDICAL_SYSTEM_PROMPT = `You are a careful medical information assistant with vision capabilities.
 - Be concise (<=150 words).
 - Provide general information only; do not provide a diagnosis or treatment plan.
 - Consider the user's current meds & profile and mention potential interactions ONLY if clearly relevant.
+- IMPORTANT: When a medical image is provided, you MUST analyze it. Describe what you see including:
+  * Visible symptoms (rashes, redness, swelling, discoloration, etc.)
+  * Skin conditions, wounds, or injuries
+  * Size, location, color, and texture of any abnormalities
+  * Any other medically relevant visual features
+- After describing the image, provide general guidance based on what you observe.
+- If an image is provided, you CAN see it and MUST analyze it - do not say you cannot view images.
 - End with: "${DISCLAIMER_LINE}"`;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function postChatOnce(payload, { timeoutMs = 30000 } = {}) {
+async function postChatOnce(payload, { timeoutMs = 60000 } = {}) {
   if (!OPENAI_KEY) {
     console.log("❌ OpenAI Key Missing - Cannot make API call");
     throw new Error("MISSING_KEY");
   }
   console.log("🚀 Making API call to OpenAI...");
+  
+  // Calculate payload size
+  const payloadString = JSON.stringify(payload);
+  const payloadSize = new Blob([payloadString]).size;
+  console.log("📦 Payload size:", (payloadSize / 1024 / 1024).toFixed(2), "MB");
+  console.log("📦 Payload structure:", {
+    model: payload.model,
+    messagesCount: payload.messages?.length,
+    hasImage: payloadString.includes("image_url"),
+    lastMessageContentType: Array.isArray(payload.messages?.[payload.messages.length - 1]?.content) ? 'array' : 'string'
+  });
+  
+  // Check if payload is too large (OpenAI has limits)
+  if (payloadSize > 20 * 1024 * 1024) { // 20MB limit
+    console.error("❌ Payload too large:", payloadSize);
+    throw new Error("Image too large. Please use a smaller image.");
+  }
+  
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t = setTimeout(() => {
+    console.log("⏱️ Request timeout after", timeoutMs, "ms");
+    ctrl.abort();
+  }, timeoutMs);
+  
   try {
+    console.log("📡 Sending fetch request...");
     const r = await fetch(OPENAI_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify(payload),
+      headers: { 
+        "Content-Type": "application/json", 
+        Authorization: `Bearer ${OPENAI_KEY}`,
+        "User-Agent": "ReactNative/1.0"
+      },
+      body: payloadString,
       signal: ctrl.signal,
     });
-    const body = await r.json().catch(() => ({}));
     console.log("📡 API Response Status:", r.status);
-    console.log("📡 API Response Body:", JSON.stringify(body, null, 2));
+    const body = await r.json().catch((parseError) => {
+      console.error("❌ Failed to parse response:", parseError);
+      return { error: { message: "Failed to parse API response" } };
+    });
+    
+    console.log("📡 API Response Body keys:", Object.keys(body));
+    if (body.error) {
+      console.log("📡 API Error Details:", JSON.stringify(body.error, null, 2));
+    }
     
     if (!r.ok) {
-      const msg = body?.error?.message || `HTTP_${r.status}`;
+      const msg = body?.error?.message || body?.error?.type || `HTTP_${r.status}`;
       console.log("❌ API Error:", msg);
+      console.log("❌ Full error:", JSON.stringify(body, null, 2));
       const err = new Error(msg);
       err.status = r.status;
+      err.body = body;
       throw err;
     }
     const content = body?.choices?.[0]?.message?.content ?? "";
     console.log("✅ API Success - Content length:", content.length);
+    console.log("✅ Response preview:", content.substring(0, 100));
     return content;
+  } catch (fetchError) {
+    clearTimeout(t);
+    console.error("❌ Fetch error details:", {
+      name: fetchError?.name,
+      message: fetchError?.message,
+      stack: fetchError?.stack,
+      isAbort: fetchError?.name === 'AbortError',
+      isNetwork: fetchError?.message?.includes('Network') || fetchError?.message?.includes('Failed to fetch')
+    });
+    
+    // Re-throw with more context
+    if (fetchError?.name === 'AbortError') {
+      const timeoutErr = new Error("Request timeout - the image may be too large or processing is taking too long.");
+      timeoutErr.status = 408;
+      throw timeoutErr;
+    }
+    
+    if (fetchError?.message?.includes('Network') || fetchError?.message?.includes('Failed to fetch')) {
+      const networkErr = new Error("Network request failed - please check your internet connection and try again with a smaller image.");
+      networkErr.status = 0;
+      throw networkErr;
+    }
+    
+    throw fetchError;
   } finally {
     clearTimeout(t);
   }
 }
 
-async function postChat(payload, { retries = 2 } = {}) {
+async function postChat(payload, { retries = 2, timeoutMs = 30000 } = {}) {
   let attempt = 0;
   while (true) {
     try {
-      return await postChatOnce(payload);
+      return await postChatOnce(payload, { timeoutMs });
     } catch (e) {
       attempt += 1;
       const status = e?.status || 0;
@@ -172,10 +241,77 @@ function buildMessages(userInput, conversationHistory = [], medicationContext = 
 
   const sys = [MEDICAL_SYSTEM_PROMPT, ...contextParts].join("\n\n");
 
+  // Build user message - handle images
+  let userMessage = { role: "user", content: [] };
+  
+  // Add text content if exists
+  if (userInput && userInput.trim()) {
+    userMessage.content.push({ type: "text", text: userInput });
+  }
+  
+  // Add image if provided
+  if (opts?.imageBase64) {
+    console.log("📸 Adding image to message, base64 length:", opts.imageBase64?.length);
+    
+    // Ensure base64 doesn't have data URL prefix
+    let cleanBase64 = opts.imageBase64;
+    if (cleanBase64.includes(',')) {
+      cleanBase64 = cleanBase64.split(',')[1];
+    }
+    
+    // Calculate actual image size
+    const base64SizeKB = (cleanBase64.length * 3 / 4 / 1024);
+    console.log("📸 Base64 image size:", base64SizeKB.toFixed(2), "KB");
+    console.log("📸 Base64 preview:", cleanBase64.substring(0, 50) + "...");
+    
+    // Warn if image is too large (more than 4MB base64 = ~5.3MB actual)
+    if (base64SizeKB > 4000) { // 4MB
+      console.warn("⚠️ Image is very large:", base64SizeKB.toFixed(2), "KB - this may cause network issues");
+    }
+    
+    userMessage.content.push({
+      type: "image_url",
+      image_url: {
+        url: `data:image/jpeg;base64,${cleanBase64}`
+      }
+    });
+    // If no text provided with image, add a prompt for analysis
+    if (!userInput || !userInput.trim()) {
+      userMessage.content.unshift({ 
+        type: "text", 
+        text: "Please analyze this medical image carefully. Describe in detail what you see - including any visible symptoms, skin conditions, rashes, wounds, discoloration, or other medically relevant features. Provide your observations." 
+      });
+    }
+  }
+
+  // If we have an image, always use the content array format
+  const finalUserMessage = opts?.imageBase64 
+    ? userMessage 
+    : (userMessage.content.length === 1 && userMessage.content[0].type === "text" 
+        ? { role: "user", content: userMessage.content[0].text }
+        : userMessage);
+
+  console.log("📤 Final user message format:", JSON.stringify(finalUserMessage, null, 2));
+  console.log("📤 Full payload being sent:", JSON.stringify({
+    model: opts?.imageBase64 ? VISION_MODEL : PRIMARY_MODEL,
+    hasImage: !!opts?.imageBase64,
+    imageBase64Length: opts?.imageBase64?.length
+  }, null, 2));
+
+  // Map conversation history - ensure format compatibility
+  const historyMessages = conversationHistory.slice(-4).map(m => {
+    // If message is text-only, use simple format
+    if (typeof m.text === 'string') {
+      return { role: m.isUser ? "user" : "assistant", content: m.text };
+    }
+    // Otherwise preserve the content structure
+    return { role: m.isUser ? "user" : "assistant", content: m.content || m.text };
+  });
+
   return [
     { role: "system", content: sys },
-    ...conversationHistory.slice(-4).map(m => ({ role: m.isUser ? "user" : "assistant", content: m.text })),
-    { role: "user", content: userInput },
+    ...historyMessages,
+    finalUserMessage,
   ];
 }
 
@@ -185,13 +321,24 @@ export class AIService {
   static async getAIResponse(userInput, conversationHistory = [], medicationContext = "", patientProfile = "", userName = "", opts = {}) {
     try {
       const messages = buildMessages(userInput, conversationHistory, medicationContext, patientProfile, userName, opts);
+      // Use vision model if image is present
+      const modelToUse = opts?.imageBase64 ? VISION_MODEL : PRIMARY_MODEL;
+      
+      console.log("🤖 Using model:", modelToUse, "with image:", !!opts?.imageBase64);
+      console.log("📋 Final messages being sent:", JSON.stringify(messages, null, 2));
+      
       try {
-        const content = await postChat({ model: PRIMARY_MODEL, messages, temperature: 0.4, max_tokens: 220 });
+        const payload = { model: modelToUse, messages, temperature: 0.4, max_tokens: opts?.imageBase64 ? 500 : 220 };
+        console.log("📤 Complete payload size:", JSON.stringify(payload).length, "bytes");
+        console.log("📤 Payload messages count:", payload.messages.length);
+        // For images, use longer timeout
+        const content = await postChat(payload, { timeoutMs: opts?.imageBase64 ? 90000 : 30000 });
         const text = (content || "").trim();
         if (text) return text;
         throw new Error("EMPTY");
-      } catch {
-        const content = await postChat({ model: FALLBACK_MODEL, messages, temperature: 0.4, max_tokens: 220 });
+      } catch (err) {
+        console.log("⚠️ First attempt failed, retrying...", err?.message);
+        const content = await postChat({ model: modelToUse, messages, temperature: 0.4, max_tokens: opts?.imageBase64 ? 500 : 220 }, { timeoutMs: opts?.imageBase64 ? 90000 : 30000 });
         const text = (content || "").trim();
         if (text) return text;
         throw new Error("EMPTY_FALLBACK");
@@ -214,9 +361,9 @@ export class AIService {
         console.log("❌ Timeout Error");
         return "The request timed out. Please try again.";
       }
-      if (msg.includes("network")) {
-        console.log("❌ Network Error");
-        return "Network issue detected. Please check your connection and try again.";
+      if (msg.includes("network") || msg.includes("failed to fetch") || error?.status === 0) {
+        console.log("❌ Network Error - Details:", error?.message);
+        return "Network request failed. This may be due to:\n- Large image size (try a smaller image)\n- Slow internet connection\n- Server timeout\n\nPlease try again with a smaller image or check your internet connection.";
       }
       console.log("❌ Generic Error - Returning fallback message");
       return "I'm having trouble right now. Please try again.";

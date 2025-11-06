@@ -18,7 +18,9 @@ import {
   Vibration,
   Animated,
   Easing,
+  Image,
 } from "react-native"
+import * as ImagePicker from "expo-image-picker"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useTheme } from "../../theme/ThemeContext"
 import Icon from "react-native-vector-icons/Feather"
@@ -209,6 +211,9 @@ const Home = () => {
   const [patientProfile, setPatientProfile] = useState("")
   const [userFirstName, setUserFirstName] = useState("")
   const [usedNameOnce, setUsedNameOnce] = useState(false) // name only on first AI message in a new chat
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedImageBase64, setSelectedImageBase64] = useState(null)
+  const [showImagePickerModal, setShowImagePickerModal] = useState(false)
 
   const ttsCancelledRef = useRef(false)
   const asrStartingRef = useRef(false)
@@ -322,6 +327,104 @@ const Home = () => {
     return new Date()
   }
   const formatTimeFromTimestamp = (date) => new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+  // ---------- Image Picker Functions ----------
+  const pickImageFromGallery = async () => {
+    try {
+      setShowImagePickerModal(false)
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to upload images!')
+        return
+      }
+
+      // Launch image picker with base64 enabled and lower quality for smaller size
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.5, // Lower quality = smaller file size (reduced further)
+        base64: true,
+        maxWidth: 800, // Limit max width (reduced from 1024)
+        maxHeight: 800, // Limit max height (reduced from 1024)
+      })
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0]
+        setSelectedImage(asset.uri)
+        if (asset.base64) {
+          setSelectedImageBase64(asset.base64)
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error)
+      Alert.alert('Error', 'Failed to pick image. Please try again.')
+    }
+  }
+
+  const takePhotoFromCamera = async () => {
+    try {
+      setShowImagePickerModal(false)
+      
+      // Request camera permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission needed', 
+          'Sorry, we need camera permissions to take photos. Please enable it in your device settings.'
+        )
+        return
+      }
+
+      // Launch camera with base64 enabled and lower quality for smaller size
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.5,
+        base64: true,
+        maxWidth: 800,
+        maxHeight: 800,
+      })
+
+      if (result.canceled) {
+        console.log('User cancelled camera')
+        return
+      }
+
+      if (result.assets && result.assets.length > 0) {
+        const asset = result.assets[0]
+        setSelectedImage(asset.uri)
+        if (asset.base64) {
+          setSelectedImageBase64(asset.base64)
+        }
+      } else {
+        Alert.alert('Error', 'No image was captured. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error)
+      const errorMessage = error?.message || String(error) || 'Unknown error occurred'
+      
+      // More specific error messages
+      const lowerError = errorMessage.toLowerCase()
+      if (lowerError.includes('camera') || lowerError.includes('simulator') || lowerError.includes('not available')) {
+        Alert.alert(
+          'Camera Error',
+          'Camera is not available. If you are using a simulator, please use a real device or choose from gallery instead.'
+        )
+      } else if (lowerError.includes('permission') || lowerError.includes('denied')) {
+        Alert.alert(
+          'Permission Denied',
+          'Camera permission was denied. Please enable it in your device settings.'
+        )
+      } else {
+        Alert.alert(
+          'Error', 
+          `Failed to take photo. ${errorMessage}. Please try again or use gallery instead.`
+        )
+      }
+    }
+  }
+
 
   /** ================= Speech events ================= **/
   useSpeechRecognitionEvent("start", () => {
@@ -632,9 +735,9 @@ const Home = () => {
   }, [silenceTimer]);
 
   // ---------- Send message (single-flight + queue) ----------
-  const handleSendMessage = async (text = inputText, isFromVoice = false) => {
+  const handleSendMessage = async (text = inputText, isFromVoice = false, imageBase64 = null) => {
     const messageText = isFromVoice ? (voiceInputText || text) : text
-    if (!messageText.trim()) return
+    if (!messageText.trim() && !imageBase64 && !selectedImage) return
 
     // De-dupe same text back-to-back
     const last = messages[messages.length - 1]
@@ -649,16 +752,28 @@ const Home = () => {
     const run = async () => {
       if (!chatStarted) setChatStarted(true)
 
+      // Use provided imageBase64 or selectedImageBase64
+      const finalImageBase64 = imageBase64 || selectedImageBase64
+      
+      console.log("📸 Sending message with image:", {
+        hasImage: !!finalImageBase64,
+        imageBase64Length: finalImageBase64?.length,
+        messageText: messageText || 'Image only'
+      });
+
       const userMessage = {
         id: Date.now(),
-        text: messageText,
+        text: messageText || (finalImageBase64 ? '📷 Image' : ''),
         isUser: true,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         isFromVoice: isFromVoice,
         timestamp: new Date(),
+        imageUri: selectedImage || null,
       }
       setMessages((prev) => [...prev, userMessage])
       setInputText("")
+      setSelectedImage(null)
+      setSelectedImageBase64(null)
       setVoiceInputText("")
       setRecognizedText("")
       setIsLoading(true)
@@ -690,10 +805,11 @@ const Home = () => {
         }
 
         // ---- Decide route ----
+        // Skip follow-up check if image is present (images should always go to main response)
         let askFollowUpFirst = false
-        if (!pendingFollowUp) {
+        if (!pendingFollowUp && !finalImageBase64) {
           try {
-            askFollowUpFirst = await AIService.shouldSkipMainResponse(messageText, messages.slice(-6), userFirstName)
+            askFollowUpFirst = await AIService.shouldSkipMainResponse(messageText || '', messages.slice(-6), userFirstName)
           } catch { askFollowUpFirst = false }
         }
 
@@ -742,14 +858,23 @@ const Home = () => {
             pendingFollowUp === true ||
             /since|began|started|yesterday|last night|this morning|for \d+\s*(hours?|days?)|subah se|raat se|kal se|aaj subah se/i.test(messageText)
 
+          console.log("🔍 Before calling AI with image:", {
+            hasImage: !!finalImageBase64,
+            imageLength: finalImageBase64?.length,
+            messageText: messageText || 'Image only',
+            suppressFollowUps
+          });
+
           const aiRaw = await AIService.getAIResponse(
-            messageText,
+            messageText || (finalImageBase64 ? 'Please analyze this medical image' : ''),
             messages.slice(-6),
             medicationContext,
             patientProfile,
             userFirstName,
-            { suppressFollowUps }
+            { suppressFollowUps, imageBase64: finalImageBase64 }
           )
+          
+          console.log("✅ AI Response received:", aiRaw?.substring(0, 100));
 
           const mainText = cleanModelText(maybeWithNameOnce(aiRaw))
 
@@ -922,6 +1047,8 @@ const Home = () => {
                     lastVoiceSentRef.current = ""
                     setPendingFollowUp(false)
                     setUsedNameOnce(false) // reset for the next brand-new chat
+                    setSelectedImage(null)
+                    setSelectedImageBase64(null)
                   }}
                 >
                   <Text style={styles.clearHistoryText}>Start New Conversation</Text>
@@ -941,7 +1068,16 @@ const Home = () => {
                       message.isFromVoice && styles.voiceMessageIndicator,
                     ]}
                   >
-                    <Text style={message.isUser ? styles.userText : styles.aiText}>{message.text}</Text>
+                    {message.imageUri && (
+                      <Image
+                        source={{ uri: message.imageUri }}
+                        style={styles.messageImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                    {message.text && (
+                      <Text style={message.isUser ? styles.userText : styles.aiText}>{message.text}</Text>
+                    )}
                     <Text style={message.isUser ? styles.userTime : styles.aiTime}>{message.time}</Text>
                   </TouchableOpacity>
                 ))}
@@ -975,6 +1111,8 @@ const Home = () => {
                     lastVoiceSentRef.current = ""
                     setPendingFollowUp(false)
                     setUsedNameOnce(false)
+                    setSelectedImage(null)
+                    setSelectedImageBase64(null)
                     emergencyVoiceStop()
                   }}
                 >
@@ -982,10 +1120,34 @@ const Home = () => {
                   <Text style={styles.fabText}>New Chat</Text>
                 </TouchableOpacity>
 
+                {selectedImage && (
+                  <View style={styles.selectedImageContainer}>
+                    <Image source={{ uri: selectedImage }} style={styles.selectedImagePreview} resizeMode="cover" />
+                    <TouchableOpacity
+                      style={styles.removeImageBtn}
+                      onPress={() => {
+                        setSelectedImage(null)
+                        setSelectedImageBase64(null)
+                      }}
+                    >
+                      <Icon name="x" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
                 <View style={[styles.inputBox, { backgroundColor: theme.onboardingCardBg || "#E9E71" }]}>
+                  {/* Image Picker Button - Opens Modal */}
+                  <TouchableOpacity
+                    style={styles.imagePickerBtn}
+                    onPress={() => setShowImagePickerModal(true)}
+                    disabled={isSpeaking || isLoading}
+                  >
+                    <Icon name="plus" size={22} color={theme?.primary || "#6B705B"} />
+                  </TouchableOpacity>
+                  
                   <TextInput
                     style={styles.input}
-                    placeholder="Type here"
+                    placeholder="Type here or tap + to add photo"
                     placeholderTextColor="#465D69"
                     value={inputText}
                     onChangeText={setInputText}
@@ -996,26 +1158,24 @@ const Home = () => {
                   <TouchableOpacity
                     style={[styles.sendBtn, { 
                       backgroundColor: isSpeaking 
-                        ? "#6B705B" // Red when AI is speaking (pause button)
-                        : (inputText.trim() && !isLoading) 
-                          ? (theme?.primary || "#6B705B") // Normal color when ready to send
-                          : "#D3D3D3" // Disabled color
+                        ? "#6B705B"
+                        : ((inputText.trim() || selectedImage) && !isLoading) 
+                          ? (theme?.primary || "#6B705B")
+                          : "#D3D3D3"
                     }]}
                     onPress={() => {
                       if (isSpeaking) {
-                        // Pause AI reading
                         handlePauseReading();
-                      } else if (inputText.trim() && !isLoading) {
-                        // Send message
+                      } else if ((inputText.trim() || selectedImage) && !isLoading) {
                         handleSendMessage(inputText, false);
                       }
                     }}
-                    disabled={(!inputText.trim() && !isSpeaking) || isLoading}
+                    disabled={(!inputText.trim() && !selectedImage && !isSpeaking) || isLoading}
                   >
                     <Icon 
                       name={isSpeaking ? "pause" : "send"} 
                       size={20} 
-                      color={(isSpeaking || (inputText.trim() && !isLoading)) ? "#fff" : "#999"} 
+                      color={(isSpeaking || ((inputText.trim() || selectedImage) && !isLoading)) ? "#fff" : "#999"} 
                     />
                   </TouchableOpacity>
                 </View>
@@ -1041,6 +1201,59 @@ const Home = () => {
           })
         }}
       />
+
+      {/* Image Picker Modal */}
+      <Modal
+        visible={showImagePickerModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImagePickerModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.imagePickerModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowImagePickerModal(false)}
+        >
+          <View 
+            style={[styles.imagePickerModalContent, { backgroundColor: theme.modalBackground || "#fff" }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.imagePickerModalHandle} />
+            <Text style={[styles.imagePickerModalTitle, { color: theme.textPrimary || "#222" }]}>
+              Select Image
+            </Text>
+            
+            <TouchableOpacity
+              style={[styles.imagePickerOption, { backgroundColor: theme.onboardingCardBg || "#E9E7E1" }]}
+              onPress={pickImageFromGallery}
+            >
+              <Icon name="image" size={24} color={theme?.primary || "#6B705B"} />
+              <Text style={[styles.imagePickerOptionText, { color: theme.textPrimary || "#222" }]}>
+                Choose from Gallery
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.imagePickerOption, { backgroundColor: theme.onboardingCardBg || "#E9E7E1" }]}
+              onPress={takePhotoFromCamera}
+            >
+              <Icon name="camera" size={24} color={theme?.primary || "#6B705B"} />
+              <Text style={[styles.imagePickerOptionText, { color: theme.textPrimary || "#222" }]}>
+                Take Photo
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.imagePickerCancelBtn, { backgroundColor: "#E9E7E1" }]}
+              onPress={() => setShowImagePickerModal(false)}
+            >
+              <Text style={[styles.imagePickerCancelText, { color: theme.textPrimary || "#222" }]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </>
   )
 }
@@ -1107,8 +1320,37 @@ const styles = StyleSheet.create({
 
   inputBoxWrapper: { paddingHorizontal: 20, paddingBottom: 30, position: 'relative' },
   inputBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 32, marginTop: 10 },
-  input: { fontSize: 18, flex: 1, color: "#465D69" },
-  sendBtn: { padding: 12, borderRadius: 100, marginLeft: 10 },
+  input: { fontSize: 14, flex: 1, color: "#465D69", marginHorizontal: 8 },
+  sendBtn: { padding: 12, borderRadius: 100, marginLeft: 5 },
+  imagePickerBtn: { padding: 8, borderRadius: 20 },
+  selectedImageContainer: { 
+    marginHorizontal: 20, 
+    marginBottom: 10, 
+    position: 'relative',
+    alignSelf: 'flex-start',
+  },
+  selectedImagePreview: { 
+    width: 100, 
+    height: 100, 
+    borderRadius: 12,
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FF6B6B',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
   fabButton: {
     position: 'absolute',
     top: -50,
@@ -1164,6 +1406,56 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   exitVoiceModeText: { fontWeight: "700" },
+
+  // Image Picker Modal Styles
+  imagePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  imagePickerModalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    maxHeight: "50%",
+  },
+  imagePickerModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#ccc",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  imagePickerModalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  imagePickerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  imagePickerOptionText: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  imagePickerCancelBtn: {
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  imagePickerCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
 })
 
 export default Home

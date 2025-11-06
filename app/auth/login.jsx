@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image, ScrollView, Platform, ActivityIndicator, Modal, Dimensions } from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image, ScrollView, Platform, ActivityIndicator, Modal, Dimensions, KeyboardAvoidingView } from "react-native";
 import { useTheme } from "../theme/ThemeContext";
 import { useRouter } from "expo-router";
 import { useState, useEffect } from "react";
@@ -378,8 +378,17 @@ const Login = () => {
 
   return (
     <AnimatedBackground>
-      <SafeAreaView style={[styles.container]}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <SafeAreaView style={[styles.container]}>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent} 
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
           <View style={styles.logoContainer}>
             <Image source={require('../../assets/logo.png')} style={styles.logo} />
           </View>
@@ -523,7 +532,8 @@ const Login = () => {
           type={alert.type}
           onClose={hideAlert}
         />
-      </SafeAreaView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
     </AnimatedBackground>
   );
 };
@@ -532,7 +542,7 @@ export default Login;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20, paddingBottom: 40 },
   logoContainer: { alignItems: 'center', marginTop: 10, marginBottom: 10 },
   logo: { width: 200, height: 200, resizeMode: 'contain' },
   welcomeText: { textAlign: 'center', color: '#6B705B', fontSize: 16, marginBottom: 18, fontWeight: '500' },

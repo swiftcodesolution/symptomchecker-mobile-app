@@ -86,7 +86,7 @@ const MedicationDetailsModal: React.FC<MedicationDetailsModalProps> = ({
 
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Refill Date</Text>
-                <Text style={styles.detailValue}>{formatDate(medication.refillDate)}</Text>
+                <Text style={styles.detailValue}>{medication.refillDate}</Text>
               </View>
 
               {medication.createdAt && (

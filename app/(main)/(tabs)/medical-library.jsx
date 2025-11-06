@@ -20,11 +20,12 @@ import Searchbar from "../../components/Searchbar"
 import LibraryCard from "../../components/LibraryCard"
 import AnimatedBackground from "../../components/AnimatedBackground"
 import Header from "../../components/Header"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { getChatHistoryFromFirebase } from "../../utils/firebaseUtils"
 import { Ionicons } from "@expo/vector-icons"
 import medicalArticles from "../../utils/medicalArticles"
 import { useLocalSearchParams } from "expo-router"
+import { useFocusEffect } from "@react-navigation/native"
 
 const profileImg = require("../../../assets/user.webp")
 
@@ -112,70 +113,73 @@ const MedicalLibrary = () => {
     }
   }, [])
 
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const sessions = await getChatHistoryFromFirebase()
+  const fetchConversations = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const sessions = await getChatHistoryFromFirebase()
 
-        if (!sessions || sessions.length === 0) {
-          setError("No conversation history found.")
-          setConversationSessions([])
-          return
-        }
-
-        const formattedSessions = sessions.map((session) => {
-          const sessionDate = session.timestamp?.toDate ? session.timestamp.toDate() : new Date(session.timestamp)
-
-          const fullConversation = session.messages.map((msg) => msg.message).join(" ")
-
-          const userMessages = session.messages.filter((msg) => msg.isUser)
-          const conversationTitle =
-            userMessages.length > 0
-              ? `Symptom Check: ${userMessages[0].message.substring(0, 50)}${userMessages[0].message.length > 50 ? "..." : ""}`
-              : "Symptom Check Conversation"
-
-          // Find recommended articles and ATTACH trusted links
-          const recommended = findRelevantArticles(fullConversation).map((a) => ({
-            ...a,
-            links: ensureArticleLinks(a, a.title || conversationTitle),
-          }))
-
-          return {
-            id: session.sessionId,
-            title: conversationTitle,
-            date: `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, "0")}-${String(
-              sessionDate.getDate()
-            ).padStart(2, "0")}`,
-            time: sessionDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            fullDate: sessionDate,
-            messages: session.messages.sort((a, b) => {
-              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp)
-              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp)
-              return dateA - dateB
-            }),
-            articles: recommended,
-            tag: "Symptom Check",
-            shareLink: "View Conversation",
-          }
-        })
-
-        const dates = [...new Set(formattedSessions.map((session) => session.date))].sort().reverse()
-        setAvailableDates(dates)
-
-        setConversationSessions(formattedSessions)
-      } catch (error) {
-        console.error("Error fetching conversations:", error)
-        setError("Failed to load conversation history.")
+      if (!sessions || sessions.length === 0) {
+        setError("No conversation history found.")
         setConversationSessions([])
-      } finally {
-        setLoading(false)
+        return
       }
-    }
 
-    fetchConversations()
+      const formattedSessions = sessions.map((session) => {
+        const sessionDate = session.timestamp?.toDate ? session.timestamp.toDate() : new Date(session.timestamp)
+
+        const fullConversation = session.messages.map((msg) => msg.message).join(" ")
+
+        const userMessages = session.messages.filter((msg) => msg.isUser)
+        const conversationTitle =
+          userMessages.length > 0
+            ? `Symptom Check: ${userMessages[0].message.substring(0, 50)}${userMessages[0].message.length > 50 ? "..." : ""}`
+            : "Symptom Check Conversation"
+
+        // Find recommended articles and ATTACH trusted links
+        const recommended = findRelevantArticles(fullConversation).map((a) => ({
+          ...a,
+          links: ensureArticleLinks(a, a.title || conversationTitle),
+        }))
+
+        return {
+          id: session.sessionId,
+          title: conversationTitle,
+          date: `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, "0")}-${String(
+            sessionDate.getDate()
+          ).padStart(2, "0")}`,
+          time: sessionDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          fullDate: sessionDate,
+          messages: session.messages.sort((a, b) => {
+            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp)
+            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp)
+            return dateA - dateB
+          }),
+          articles: recommended,
+          tag: "Symptom Check",
+          shareLink: "View Conversation",
+        }
+      })
+
+      const dates = [...new Set(formattedSessions.map((session) => session.date))].sort().reverse()
+      setAvailableDates(dates)
+
+      setConversationSessions(formattedSessions)
+    } catch (error) {
+      console.error("Error fetching conversations:", error)
+      setError("Failed to load conversation history.")
+      setConversationSessions([])
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  // Refresh conversations every time the tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations()
+    }, [fetchConversations])
+  )
 
   const findRelevantArticles = (conversationText) => {
     const text = (conversationText || "").toLowerCase()

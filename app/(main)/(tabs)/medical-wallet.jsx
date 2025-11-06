@@ -28,6 +28,10 @@ import ContactsDirectory from "../../components/ContactsDirectory";
 import PersonalDetailsView from "../../components/PersonalDetailsView";
 import { getAuth } from 'firebase/auth';
 import { useFocusEffect } from "@react-navigation/native";
+import { useSelector, useDispatch } from 'react-redux';
+import { selectUserData, selectProfileImage, loadProfileImage } from '../../redux/slices/userProfileSlice';
+import { selectAnswers } from '../../redux/slices/userInfoSlice';
+import { questionsData } from '../../collect-user-info';
 
 import {
   getPersonalDetails,
@@ -49,37 +53,7 @@ import { doc, getDoc } from "firebase/firestore";
 const profileImg = require("../../../assets/user.webp");
 const HEADER_HEIGHT = 300;
 
-// ---------- helpers to map answers[] -> personalDetails ----------
-const getByQuestion = (answers, startsWith) => {
-  const idx = answers.findIndex(
-    (a) => (a?.question || "")?.toLowerCase().startsWith(startsWith.toLowerCase())
-  );
-  if (idx === -1) return "";
-  return (answers[idx]?.answer || "").trim();
-};
-
-const mapAnswersToPersonalDetails = (answers = []) => {
-  const name = getByQuestion(answers, "What is your Full Name");
-  const contactNo = getByQuestion(answers, "What is your Phone Number");
-  email = getByQuestion(answers, "What is your Email Address");
-  const addr = getByQuestion(answers, "What is your Home Address");
-  const city = getByQuestion(answers, "What is your City");
-  const state = getByQuestion(answers, "What is your State");
-  const zip = getByQuestion(answers, "What is your Zip Code");
-
-  const addressParts = [addr, city, state, zip].filter(Boolean);
-  const address = addressParts.join(", ");
-
-  const hasAny =
-    (name && name.length) ||
-    (contactNo && contactNo.length) ||
-    (email && email.length) ||
-    (address && address.length);
-
-  if (!hasAny) return null;
-
-  return { name, contactNo, email, address };
-};
+// Old helper functions removed - now using Redux + AsyncStorage
 
 const MedicalWallet = () => {
   const { theme } = useTheme();
@@ -90,6 +64,15 @@ const MedicalWallet = () => {
    const auth = getAuth();
      const user = auth.currentUser;
      console.log("user", user.email);
+     
+  // Get user data from Redux store
+  const dispatch = useDispatch();
+  const userData = useSelector(selectUserData);
+  const profileImage = useSelector(selectProfileImage);
+  const localAnswers = useSelector(selectAnswers);
+  
+  // Phone and address from Firestore/Redux (same as medical-history)
+  const [savedContacts, setSavedContacts] = useState({ phone: null, address: null });
      
 
   // View (directory) modal toggles
@@ -124,8 +107,41 @@ const MedicalWallet = () => {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      const [personal, insurance, doctors, pharmacies, contacts, primary] = await Promise.all([
-        getPersonalDetails(),
+      
+      // Load Redux profile data first
+      await dispatch(loadProfileImage());
+      
+      // Load phone and address from Firestore/Redux (same as medical-history)
+      let phoneValue = '';
+      let addressValue = '';
+      
+      // Find the indices for phone and address in questionsData
+      const phoneIndex = questionsData.findIndex(q => q.question.includes('Phone Number'));
+      const addressIndex = questionsData.findIndex(q => q.question.includes('Home Address'));
+      
+      // Try to get from Redux first
+      if (localAnswers && Object.keys(localAnswers).length > 0) {
+        phoneValue = localAnswers[phoneIndex]?.answer || '';
+        addressValue = localAnswers[addressIndex]?.answer || '';
+      }
+      
+      // If not in Redux, try to load from Firestore
+      if (!phoneValue && !addressValue) {
+        const user = firebaseAuth.currentUser;
+        if (user) {
+          const snap = await getDoc(doc(firestore, 'users', user.uid));
+          if (snap.exists() && Array.isArray(snap.data()?.answers)) {
+            const fbAnswers = snap.data().answers;
+            phoneValue = fbAnswers[phoneIndex]?.answer || '';
+            addressValue = fbAnswers[addressIndex]?.answer || '';
+          }
+        }
+      }
+      
+      console.log("🔍 Medical-wallet: Loading phone and address from Firestore/Redux:", { phoneValue, addressValue });
+      setSavedContacts({ phone: phoneValue, address: addressValue });
+      
+      const [insurance, doctors, pharmacies, contacts, primary] = await Promise.all([
         getInsuranceDetails(),
         getDoctorDetails(),
         getPharmacyDetails(),
@@ -133,43 +149,8 @@ const MedicalWallet = () => {
         getPrimaryDoctor(),
       ]);
 
-      let mergedPersonal = personal;
-
-      const user = firebaseAuth.currentUser;
-
-      const nothingInPersonal =
-        !personal ||
-        (!personal.name && !personal.contactNo && !personal.email && !personal.address);
-
-      if (nothingInPersonal) {
-        if (user) {
-          const snap = await getDoc(doc(firestore, "users", user.uid));
-          const answersArr = snap.exists() ? snap.data()?.answers || [] : [];
-          const withQuestions = answersArr.map((a, i) => ({
-            ...a,
-            question:
-              [
-                "What is your Full Name?",
-                "What is your Date of Birth (MM/DD/YYYY)?",
-                "What is your Age?",
-                "What is your Gender (Male/Female/Other)?",
-                "What is your Ethnicity?",
-                "What is your Home Address?",
-                "What is your City?",
-                "What is your State?",
-                "What is your Zip Code?",
-                "What is your Phone Number?",
-                "What is your Email Address?",
-                "What is your Height (ft/in)?",
-                "What is your Weight (lbs)?",
-              ][i] || "",
-          }));
-          const mapped = mapAnswersToPersonalDetails(withQuestions);
-          if (mapped) mergedPersonal = mapped;
-        }
-      }
-
-      setPersonalDetails(mergedPersonal || null);
+      // Personal details are now loaded from Redux store (name, email) + Firestore/Redux (phone, address)
+      setPersonalDetails(null); // We'll use Redux + Firestore data instead
       setInsuranceList(insurance || []);
       setDoctorList(doctors || []);
       setPharmacyList(pharmacies || []);
@@ -179,6 +160,8 @@ const MedicalWallet = () => {
       // Debug logging
       console.log("🔍 Doctor data loaded:", doctors);
       console.log("🔍 Primary doctor:", primary);
+      console.log("🔍 User data from Redux:", userData);
+      console.log("🔍 Saved contacts from Firestore/Redux:", { phone: phoneValue, address: addressValue });
     } catch (error) {
       console.error("Error loading data:", error);
       Alert.alert("Error", "Failed to load data. Please try again.");
@@ -190,7 +173,7 @@ const MedicalWallet = () => {
     useFocusEffect(
     useCallback(() => {
       loadAllData();
-    }, [])
+    }, [localAnswers])
   );
 
   // Contacts
@@ -286,42 +269,53 @@ const MedicalWallet = () => {
 
 
   console.log("personalDetails", personalDetails);
+  console.log("userData from Redux:", userData);
   
 
   const renderPersonalDetails = () => {
-    if (!personalDetails) {
+    // Check if we have any data to show
+    // Name and email from Redux (users/{uid} collection)
+    // Phone and address from AsyncStorage (same as search-history)
+    const hasName = userData.displayName || user?.displayName;
+    const hasEmail = userData.email || user?.email;
+    const hasPhone = savedContacts.phone;
+    const hasAddress = savedContacts.address;
+    
+    if (!hasName && !hasEmail && !hasPhone && !hasAddress) {
       return (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No personal details added yet</Text>
+          <Text style={styles.emptySubText}>Go to Settings → Edit Profile to add your details</Text>
         </View>
       );
     }
+    
     return (
       <View style={styles.detailsContent}>
-        {!!user?.displayName && (
+        {hasName && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Name:</Text>
-            <Text style={styles.detailValue}>{user?.displayName}</Text>
+            <Text style={styles.detailValue}>{userData.displayName || user?.displayName}</Text>
           </View>
         )}
-        {/* {!!personalDetails.contactNo && (
+        {hasPhone && (
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Contact No:</Text>
-            <Text style={styles.detailValue}>{personalDetails.contactNo}</Text>
+            <Text style={styles.detailLabel}>Phone Number:</Text>
+            <Text style={styles.detailValue}>{savedContacts.phone}</Text>
           </View>
-        )} */}
-        {!!user.email && (
+        )}
+        {hasEmail && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Email:</Text>
-            <Text style={styles.detailValue}>{user.email}</Text>
+            <Text style={styles.detailValue}>{userData.email || user?.email}</Text>
           </View>
         )}
-        {/* {!!personalDetails.address && (
+        {hasAddress && (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Address:</Text>
-            <Text style={styles.detailValue}>{personalDetails.address}</Text>
+            <Text style={styles.detailValue}>{savedContacts.address}</Text>
           </View>
-        )} */}
+        )}
       </View>
     );
   };
@@ -360,11 +354,12 @@ const MedicalWallet = () => {
             ]}
           >
             <Header
-              profileImage={profileImg}
-              greeting="Hello Scott"
+              profileImage={profileImage ? { uri: profileImage } : profileImg}
+              greeting={`Hello ${userData.displayName || user?.displayName || 'User'}`}
               location="SC, 702 USA"
               sos={true}
               medical={true}
+              key={profileImage} // Force re-render when profile image changes
             />
             <Text style={styles.pageTitle}>Medical Wallet</Text>
           </Animated.View>
@@ -659,7 +654,12 @@ const MedicalWallet = () => {
         <PersonalDetailsView
           visible={showPersonalView}
           onClose={() => setShowPersonalView(false)}
-          currentDetails={personalDetails}
+          currentDetails={{
+            name: userData.displayName || user?.displayName,
+            email: userData.email || user?.email,
+            phone: savedContacts.phone,
+            address: savedContacts.address
+          }}
           onUpdated={() => loadAllData()}
         />
       </SafeAreaView>
@@ -702,6 +702,7 @@ const styles = StyleSheet.create({
   detailValue: { color: "#444", marginRight: 10 },
   emptyState: { alignItems: "center", paddingVertical: 20 },
   emptyText: { color: "#666", fontSize: 16, marginBottom: 10 },
+  emptySubText: { color: "#999", fontSize: 14, textAlign: "center", marginTop: 5 },
   addButton: { backgroundColor: "#22577A", paddingHorizontal: 20, paddingVertical: 8, borderRadius: 8 },
   addButtonText: { color: "#fff", fontWeight: "bold" },
   tableHeaderRow: { flexDirection: "row", backgroundColor: "#D7F9F1", borderRadius: 8, paddingVertical: 6, marginBottom: 4 },

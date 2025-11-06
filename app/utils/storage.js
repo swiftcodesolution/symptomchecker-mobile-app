@@ -30,9 +30,21 @@ export const getSavedData = async () => {
       AsyncStorage.getItem('user_phone_number'),
       AsyncStorage.getItem('user_address')
     ]);
+    console.log('🔍 Retrieved from AsyncStorage - Phone:', phone, 'Address:', address);
     return { phone, address };
   } catch (error) {
     console.error('Error retrieving data:', error);
     return { phone: null, address: null };
+  }
+};
+
+// Clear incorrect data function (for fixing the current issue)
+export const clearIncorrectData = async () => {
+  try {
+    await AsyncStorage.removeItem('user_phone_number');
+    await AsyncStorage.removeItem('user_address');
+    console.log('🔍 Cleared incorrect data from AsyncStorage');
+  } catch (error) {
+    console.error('Error clearing incorrect data:', error);
   }
 };

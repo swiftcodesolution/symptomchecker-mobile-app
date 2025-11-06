@@ -1,8 +1,8 @@
 // slices/userProfileSlice.js
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAuth, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { firestore } from '../../config/firebase';
 
 // Async thunk to load profile image
@@ -15,11 +15,17 @@ export const loadProfileImage = createAsyncThunk(
       
       if (user) {
         const savedImage = await AsyncStorage.getItem(`profileImage_${user.uid}`);
+        // Load user data from Firestore
+        const userRef = doc(firestore, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.exists() ? userSnap.data() : {};
+        
         return {
           profileImage: savedImage,
-          displayName: user.displayName || '',
-          email: user.email || '',
-          phoneNumber: user.phoneNumber || ''
+          displayName: userData.displayName || user.displayName || '',
+          email: userData.email || user.email || '',
+          phoneNumber: userData.phoneNumber || '',
+          address: userData.address || ''
         };
       }
       return rejectWithValue('No user found');
@@ -51,7 +57,7 @@ export const saveProfileImage = createAsyncThunk(
 // Async thunk to update user profile
 export const updateUserProfile = createAsyncThunk(
   'userProfile/updateUserProfile',
-  async ({ displayName, email, phoneNumber }, { rejectWithValue }) => {
+  async ({ displayName, email, phoneNumber, address }, { rejectWithValue }) => {
     try {
       const auth = getAuth();
       const user = auth.currentUser;
@@ -66,10 +72,11 @@ export const updateUserProfile = createAsyncThunk(
           displayName: displayName,
           email: email,
           phoneNumber: phoneNumber,
+          address: address,
           lastUpdated: new Date().toISOString()
         }, { merge: true });
         
-        return { displayName, email, phoneNumber };
+        return { displayName, email, phoneNumber, address };
       }
       return rejectWithValue('No user found');
     } catch (error) {
@@ -83,6 +90,7 @@ const initialState = {
   displayName: '',
   email: '',
   phoneNumber: '',
+  address: '',
   loading: false,
   error: null,
 };
@@ -98,6 +106,7 @@ export const userProfileSlice = createSlice({
       state.displayName = action.payload.displayName || '';
       state.email = action.payload.email || '';
       state.phoneNumber = action.payload.phoneNumber || '';
+      state.address = action.payload.address || '';
     },
     setLoading: (state, action) => {
       state.loading = action.payload;
@@ -120,6 +129,7 @@ export const userProfileSlice = createSlice({
         state.displayName = action.payload.displayName;
         state.email = action.payload.email;
         state.phoneNumber = action.payload.phoneNumber;
+        state.address = action.payload.address;
       })
       .addCase(loadProfileImage.rejected, (state, action) => {
         state.loading = false;
@@ -148,6 +158,7 @@ export const userProfileSlice = createSlice({
         state.displayName = action.payload.displayName;
         state.email = action.payload.email;
         state.phoneNumber = action.payload.phoneNumber;
+        state.address = action.payload.address;
       })
       .addCase(updateUserProfile.rejected, (state, action) => {
         state.loading = false;
@@ -159,11 +170,18 @@ export const userProfileSlice = createSlice({
 export const { setProfileImage, setUserData, setLoading, clearError, resetProfile } = userProfileSlice.actions;
 
 export const selectProfileImage = (state) => state.userProfile.profileImage;
-export const selectUserData = (state) => ({
-  displayName: state.userProfile.displayName,
-  email: state.userProfile.email,
-  phoneNumber: state.userProfile.phoneNumber
-});
+
+// Memoized selector to prevent unnecessary re-renders
+export const selectUserData = createSelector(
+  [(state) => state.userProfile],
+  (userProfile) => ({
+    displayName: userProfile.displayName,
+    email: userProfile.email,
+    phoneNumber: userProfile.phoneNumber,
+    address: userProfile.address
+  })
+);
+
 export const selectProfileLoading = (state) => state.userProfile.loading;
 export const selectProfileError = (state) => state.userProfile.error;
 

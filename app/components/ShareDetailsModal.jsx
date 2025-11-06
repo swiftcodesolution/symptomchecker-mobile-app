@@ -17,6 +17,8 @@ import { getAuth } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { firestore } from '../config/firebase';
 import { getPersonalDetails, getInsuranceDetails, getDoctorDetails, getPharmacyDetails, getPersonalContacts } from '../services/firebaseService';
+import { useSelector } from 'react-redux';
+import { selectUserData } from '../redux/slices/userProfileSlice';
 import { captureRef } from 'react-native-view-shot';
 import RNShare from 'react-native-share';
 
@@ -37,6 +39,11 @@ const ShareDetailsModal = ({ visible, onClose }) => {
   const qrContainerRef = useRef();
   const auth = getAuth();
   const user = auth.currentUser;
+  
+  // Get user data from Redux store (includes phone and address from Firebase)
+  const reduxUserData = useSelector(selectUserData);
+  
+  console.log("🔍 ShareDetailsModal: Redux user data:", reduxUserData);
 
   useEffect(() => {
     if (visible) {
@@ -108,8 +115,8 @@ const ShareDetailsModal = ({ visible, onClose }) => {
         "BASIC INFORMATION": {
           "Full Name": data.userInfo.name || 'Not provided',
           "Email Address": data.userInfo.email || 'Not provided',
-          "Phone Number": data.personalDetails?.contactNo || 'Not provided',
-          "Home Address": data.personalDetails?.address || 'Not provided',
+          "Phone Number": reduxUserData.phoneNumber || 'Not provided',
+          "Home Address": reduxUserData.address || 'Not provided',
         }
       };
 
@@ -337,23 +344,30 @@ const ShareDetailsModal = ({ visible, onClose }) => {
       // Get comprehensive personal details from medical history
       const personalInfo = {};
       if (userData.medicalHistory && Array.isArray(userData.medicalHistory)) {
+        console.log("🔍 ShareDetailsModal: Medical history data:", userData.medicalHistory);
+        
+        // Process all answers with their corresponding questions
         userData.medicalHistory.forEach((answer, index) => {
           if (answer?.answer && answer.answer !== 'Not provided' && answer.answer.trim() !== '') {
-            // Map common fields
-            if (index === 0) personalInfo['Date of Birth'] = answer.answer;
-            if (index === 1) personalInfo['Age'] = answer.answer;
-            if (index === 2) personalInfo['Gender'] = answer.answer;
-            if (index === 3) personalInfo['Ethnicity'] = answer.answer;
-            if (index === 4) personalInfo['Home Address'] = answer.answer;
-            if (index === 5) personalInfo['City'] = answer.answer;
-            if (index === 6) personalInfo['State'] = answer.answer;
-            if (index === 7) personalInfo['Zip Code'] = answer.answer;
-            if (index === 8) personalInfo['Phone Number'] = answer.answer;
-            if (index === 9) personalInfo['Height'] = answer.answer;
-            if (index === 10) personalInfo['Weight'] = answer.answer;
+            console.log(`🔍 ShareDetailsModal: Index ${index}:`, answer);
+            
+            // Map by index based on the actual order from the image
+            if (index === 0) personalInfo['Date of Birth'] = answer.answer; // 07/27/2025
+            if (index === 1) personalInfo['Gender'] = answer.answer; // Male
+            if (index === 2) personalInfo['Ethnicity'] = answer.answer; // Tesing
+            if (index === 3) personalInfo['Home Address'] = answer.answer; // Ali hurrah bad Samir's kkkkkk
+            if (index === 4) personalInfo['City'] = answer.answer; // Karachi
+            if (index === 5) personalInfo['State'] = answer.answer; // Sindh
+            if (index === 6) personalInfo['Zip Code'] = answer.answer; // 77550
+            if (index === 7) personalInfo['Phone Number'] = answer.answer; // 03322711183 1111
+            if (index === 8) personalInfo['Height'] = answer.answer; // 12
+            if (index === 9) personalInfo['Weight'] = answer.answer; // 11
           }
         });
       }
+
+      console.log("🔍 ShareDetailsModal: Extracted personal info:", personalInfo);
+      console.log("🔍 ShareDetailsModal: Redux data:", reduxUserData);
 
       // Build comprehensive share message
       const shareMessage = `MEDICAL PROFILE - ${userData.userInfo.name}
@@ -361,8 +375,8 @@ const ShareDetailsModal = ({ visible, onClose }) => {
 📋 PERSONAL INFORMATION:
 • Name: ${userData.userInfo.name}
 • Email: ${userData.userInfo.email}
-• Phone: ${personalInfo['Phone Number'] || userData.personalDetails?.contactNo || 'Not provided'}
-• Address: ${personalInfo['Home Address'] || userData.personalDetails?.address || 'Not provided'}
+• Phone: ${reduxUserData.phoneNumber || personalInfo['Phone Number'] || userData.personalDetails?.contactNo || 'Not provided'}
+• Address: ${reduxUserData.address || personalInfo['Home Address'] || userData.personalDetails?.address || 'Not provided'}
 • Date of Birth: ${personalInfo['Date of Birth'] || 'Not provided'}
 • Age: ${personalInfo['Age'] || 'Not provided'}
 • Gender: ${personalInfo['Gender'] || 'Not provided'}

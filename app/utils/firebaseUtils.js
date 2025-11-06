@@ -94,14 +94,14 @@ export const getChatHistoryFromFirebase = async () => {
       return []
     }
 
-    const querySnapshot = await getDocs(collection(db, "chatHistory"))
+    // Add query to filter by userId BEFORE fetching from Firestore
+    const q = query(collection(db, "chatHistory"), where("userId", "==", user.uid))
+    const querySnapshot = await getDocs(q)
 
-    const allMessages = querySnapshot.docs
-      .filter((doc) => doc.data().userId === user.uid)
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
+    const allMessages = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }))
 
     console.log("All messages for user:", allMessages)
 

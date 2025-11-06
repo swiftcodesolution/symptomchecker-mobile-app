@@ -1,5 +1,5 @@
 // Settings.js
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Switch, Modal, TextInput, Dimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +12,8 @@ import {
   cancelAllNotifications,
   registerForPushNotificationsAsync 
 } from '../utils/notificationUtils';
-import { firestore } from "../config/firebase";
+import { savePhoneNumber, saveAddress, getSavedData } from '../utils/storage';
+import { firestore, firebaseAuth } from "../config/firebase";
 import * as ImagePicker from 'expo-image-picker';
 
 import { collection, query, where, onSnapshot, doc, deleteDoc, addDoc } from "firebase/firestore";
@@ -31,6 +32,8 @@ import {
   selectProfileError,
   clearError
 } from '../redux/slices/userProfileSlice';
+import { selectAnswers } from '../redux/slices/userInfoSlice';
+import { questionsData } from '../collect-user-info';
 
 const defaultProfileImg = require('../../assets/user.webp');
 const { width } = Dimensions.get("window");
@@ -57,20 +60,61 @@ const Settings = () => {
   const userData = useSelector(selectUserData);
   const profileLoading = useSelector(selectProfileLoading);
   const profileError = useSelector(selectProfileError);
+  const localAnswers = useSelector(selectAnswers);
   
   // Form states
   const [displayName, setDisplayName] = useState(userData.displayName || '');
   const [email, setEmail] = useState(userData.email || '');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [address, setAddress] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Load phone and address from Firestore/Redux (same as medical-history)
+  const loadSavedContacts = useCallback(async () => {
+    try {
+      // Find the indices for phone and address in questionsData
+      const phoneIndex = questionsData.findIndex(q => q.question.includes('Phone Number'));
+      const addressIndex = questionsData.findIndex(q => q.question.includes('Home Address'));
+      
+      // Try to get from Redux first
+      let phoneValue = '';
+      let addressValue = '';
+      
+      if (localAnswers && Object.keys(localAnswers).length > 0) {
+        phoneValue = localAnswers[phoneIndex]?.answer || '';
+        addressValue = localAnswers[addressIndex]?.answer || '';
+      }
+      
+      // If not in Redux, try to load from Firestore
+      if (!phoneValue && !addressValue) {
+        const user = firebaseAuth.currentUser;
+        if (user) {
+          const snap = await getDoc(doc(firestore, 'users', user.uid));
+          if (snap.exists() && Array.isArray(snap.data()?.answers)) {
+            const fbAnswers = snap.data().answers;
+            phoneValue = fbAnswers[phoneIndex]?.answer || '';
+            addressValue = fbAnswers[addressIndex]?.answer || '';
+          }
+        }
+      }
+      
+      console.log('🔍 Settings: Loaded saved contacts from Firestore/Redux:', { phoneValue, addressValue });
+      setPhoneNumber(phoneValue);
+      setAddress(addressValue);
+    } catch (error) {
+      console.error('Error loading saved contacts:', error);
+    }
+  }, [localAnswers]);
+
   useEffect(() => {
     dispatch(loadProfileImage());
-  }, [dispatch]);
+    loadSavedContacts();
+  }, [dispatch, loadSavedContacts]);
 
-  // Update form fields when userData changes
+  // Update form fields when userData changes (only name and email)
   useEffect(() => {
     setDisplayName(userData.displayName);
     setEmail(userData.email);
@@ -273,10 +317,69 @@ const Settings = () => {
   const handleUpdateProfile = async () => {
     if (!user) return;
     
+    console.log('🔍 Settings: Updating profile with:', { displayName, email, phoneNumber, address });
+    
     try {
-      // Update profile using Redux async action
-      await dispatch(updateUserProfile({ displayName, email })).unwrap();
+      // Update name and email using Redux async action (saves to users/{uid} collection)
+      await dispatch(updateUserProfile({ displayName, email, phoneNumber: phoneNumber.trim(), address: address.trim() })).unwrap();
       
+      // Save phone and address to AsyncStorage (same as search-history)
+      if (phoneNumber.trim()) {
+        console.log("🔍 Settings: Saving phone number to AsyncStorage:", phoneNumber.trim());
+        await savePhoneNumber(phoneNumber.trim());
+      }
+      if (address.trim()) {
+        console.log("🔍 Settings: Saving address to AsyncStorage:", address.trim());
+        await saveAddress(address.trim());
+      }
+      
+      // Update phone and address in Firestore (same structure as medical-history)
+      const phoneIndex = questionsData.findIndex(q => q.question.includes('Phone Number'));
+      const addressIndex = questionsData.findIndex(q => q.question.includes('Home Address'));
+      
+      if (phoneIndex >= 0 || addressIndex >= 0) {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        const docSnap = await getDoc(userDocRef);
+        const existingData = docSnap.exists() ? docSnap.data() : { answers: [] };
+        
+        // Ensure answers array exists and has enough elements
+        const answers = Array.isArray(existingData.answers) 
+          ? [...existingData.answers] 
+          : Array(questionsData.length).fill(null).map(() => ({ answer: '', summarizedAnswer: '' }));
+        
+        // Update phone number at the correct index
+        if (phoneIndex >= 0 && phoneNumber.trim()) {
+          const phoneQuestion = questionsData[phoneIndex];
+          const summarizedAnswer = phoneQuestion ? `Patient's phone number is ${phoneNumber.trim()}.` : '';
+          answers[phoneIndex] = {
+            answer: phoneNumber.trim(),
+            summarizedAnswer: summarizedAnswer
+          };
+        }
+        
+        // Update address at the correct index
+        if (addressIndex >= 0 && address.trim()) {
+          const addressQuestion = questionsData[addressIndex];
+          const summarizedAnswer = addressQuestion ? `Patient's address is ${address.trim()}.` : '';
+          answers[addressIndex] = {
+            answer: address.trim(),
+            summarizedAnswer: summarizedAnswer
+          };
+        }
+        
+        // Save updated answers to Firestore
+        await setDoc(userDocRef, { 
+          answers: answers,
+          updatedAt: new Date().toISOString() 
+        }, { merge: true });
+        
+        console.log('🔍 Settings: Updated phone and address in Firestore at indices:', { phoneIndex, addressIndex });
+      }
+      
+      // Reload saved contacts to update the form
+      await loadSavedContacts();
+      
+      console.log('🔍 Settings: Profile updated successfully');
       showSuccessAlert('Profile updated successfully!');
       setEditProfileModal(false);
     } catch (error) {
@@ -478,6 +581,30 @@ const Settings = () => {
                 />
               </View>
               
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                  placeholder="Enter your phone number"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Address</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder="Enter your address"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+              
               <TouchableOpacity 
                 style={[styles.saveButton, profileLoading && styles.disabledButton]}
                 onPress={handleUpdateProfile}
@@ -487,6 +614,7 @@ const Settings = () => {
                   {profileLoading ? 'Updating...' : 'Save Changes'}
                 </Text>
               </TouchableOpacity>
+              
             </View>
           </View>
         </Modal>
@@ -671,6 +799,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
   },
   saveButton: {
     backgroundColor: '#6B705B',
